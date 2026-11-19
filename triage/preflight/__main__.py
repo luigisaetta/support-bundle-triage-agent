@@ -7,6 +7,11 @@ Description: Command line entry point of the preflight check. Verifies, in
     packages, settings, OCI credentials, the Generative AI project, the
     model, and a real sandbox (created, probed and deleted).
 
+    The run has two phases. First the local environment is checked using
+    only the standard library. The other checks, and the application modules
+    they need (OCI SDK, openai), are imported only if that first check
+    passes: a missing or outdated package is reported, not a traceback.
+
 Usage (from the repository root):
 
     python -m triage.preflight            # all checks
@@ -19,26 +24,16 @@ Exit code: 0 when no check failed, 1 otherwise.
 import argparse
 import sys
 
-from triage.config import Settings
 from triage.preflight.base import Check, PreflightContext, Status
-from triage.preflight.checks import (
-    CleanupCheck,
-    ConfigurationCheck,
-    FileTransferCheck,
-    LocalEnvironmentCheck,
-    ModelCheck,
-    NetworkIsolationCheck,
-    OciCredentialsCheck,
-    PermissionsCheck,
-    ProjectCheck,
-    RuntimeToolsCheck,
-    SandboxStartCheck,
-)
+from triage.preflight.environment import LocalEnvironmentCheck
 from triage.preflight.runner import ConsoleReporter, PreflightRunner
 
 
 def build_checks(quick: bool) -> list[Check]:
-    """The checks to run, in order.
+    """The checks that follow the local environment check, in order.
+
+    Their modules import the OCI SDK and openai, so call this only after
+    :class:`LocalEnvironmentCheck` has passed.
 
     Args:
         quick: Leave out the checks that create a sandbox.
@@ -46,8 +41,21 @@ def build_checks(quick: bool) -> list[Check]:
     Returns:
         The checks.
     """
+    # pylint: disable-next=import-outside-toplevel
+    from triage.preflight.checks import (
+        CleanupCheck,
+        ConfigurationCheck,
+        FileTransferCheck,
+        ModelCheck,
+        NetworkIsolationCheck,
+        OciCredentialsCheck,
+        PermissionsCheck,
+        ProjectCheck,
+        RuntimeToolsCheck,
+        SandboxStartCheck,
+    )
+
     checks: list[Check] = [
-        LocalEnvironmentCheck(),
         ConfigurationCheck(),
         OciCredentialsCheck(),
         ProjectCheck(),
@@ -94,10 +102,22 @@ def main(argv: list[str] | None = None) -> int:
         The process exit code: 0 when no check failed, 1 otherwise.
     """
     args = parse_args(argv)
-    context = PreflightContext(settings=Settings.load(), keep_sandbox=args.keep)
-    runner = PreflightRunner(build_checks(args.quick), ConsoleReporter())
+    reporter = ConsoleReporter()
     print()
-    results = runner.run(context)
+
+    # Phase 1: the local environment, with the standard library only.
+    environment = LocalEnvironmentCheck()
+    result = environment.run()
+    reporter.result(environment, result)
+    if result.status is Status.FAIL:
+        reporter.summary([result])
+        return 1
+
+    # Phase 2: everything else; the required packages are now known to work.
+    from triage.config import Settings  # pylint: disable=import-outside-toplevel
+
+    context = PreflightContext(settings=Settings.load(), keep_sandbox=args.keep)
+    results = PreflightRunner(build_checks(args.quick), reporter).run(context)
     return 1 if any(result.status is Status.FAIL for result in results) else 0
 
 

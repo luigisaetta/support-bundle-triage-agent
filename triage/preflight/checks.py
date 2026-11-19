@@ -5,7 +5,7 @@ License: MIT
 Description: The preflight checks, in the order they run. Each check verifies
     one thing and, when it fails, says how to fix it:
 
-     1. LocalEnvironmentCheck   Python and the required packages
+     1. LocalEnvironmentCheck   Python and the required packages (environment.py)
      2. ConfigurationCheck      config/settings.toml and the secrets in .env
      3. OciCredentialsCheck     the OCI SDK profile can be loaded
      4. ProjectCheck            project ACTIVE, sandboxes enabled, DENY_ALL network
@@ -20,19 +20,13 @@ Description: The preflight checks, in the order they run. Each check verifies
 
 import hashlib
 import os
-import sys
 import time
-from importlib import metadata
 
 from oci.exceptions import ServiceError
 
 from triage.llm import ModelClientFactory
 from triage.preflight.base import Check, CheckResult, PreflightContext
 from triage.sandbox import SandboxSession
-
-#: Minimum versions of the required packages.
-MIN_PYTHON = (3, 11)
-MIN_PACKAGES = {"oci": (2, 189, 0), "openai": (2, 0, 0), "python-dotenv": (1, 0, 0)}
 
 #: Lifetime of the test sandbox: short, so a leftover ends on its own.
 TEST_SANDBOX_MINUTES = 10
@@ -65,45 +59,6 @@ TIME_TOOL = {
     "description": "Return the current date and time in UTC.",
     "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
 }
-
-
-class LocalEnvironmentCheck(Check):
-    """Python is recent enough and the required packages are installed."""
-
-    name = "Local environment"
-
-    def run(self, context: PreflightContext) -> CheckResult:
-        if sys.version_info < MIN_PYTHON:
-            return CheckResult.failed(
-                f"Python {sys.version.split()[0]}",
-                f"Python {'.'.join(map(str, MIN_PYTHON))} or later is required.",
-            )
-        versions = []
-        for package, minimum in MIN_PACKAGES.items():
-            try:
-                installed = metadata.version(package)
-            except metadata.PackageNotFoundError:
-                return CheckResult.failed(
-                    f"{package} is not installed",
-                    "Run: pip install -r requirements.txt",
-                )
-            if _version_tuple(installed) < minimum:
-                return CheckResult.failed(
-                    f"{package} {installed} is too old",
-                    f"{package} {'.'.join(map(str, minimum))} or later is required. "
-                    "Run: pip install -U -r requirements.txt",
-                )
-            versions.append(f"{package} {installed}")
-        try:
-            import oci.generative_ai_sandbox  # noqa: F401  pylint: disable=import-outside-toplevel,unused-import
-        except ImportError:
-            return CheckResult.failed(
-                "oci.generative_ai_sandbox cannot be imported",
-                "Reinstall the OCI SDK: pip install -U 'oci>=2.189.0'",
-            )
-        return CheckResult.passed(
-            f"Python {sys.version.split()[0]}, " + ", ".join(versions)
-        )
 
 
 class ConfigurationCheck(Check):
@@ -402,14 +357,3 @@ def _hint(error: ServiceError) -> str:
     if error.status == 429:
         return "Throttled or out of quota: check the sandbox service limits."
     return str(error.message)
-
-
-def _version_tuple(version: str) -> tuple[int, ...]:
-    """A version string as a tuple of integers, for example (2, 189, 0)."""
-    parts = []
-    for part in version.split("."):
-        digits = "".join(ch for ch in part if ch.isdigit())
-        if not digits:
-            break
-        parts.append(int(digits))
-    return tuple(parts)

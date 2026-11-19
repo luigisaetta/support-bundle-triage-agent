@@ -5,17 +5,22 @@ License: MIT
 Description: Building blocks of the preflight check: the result of one check,
     the context shared by all checks, and the Check base class that every
     concrete check extends.
+
+    This module imports only the standard library at load time, so the local
+    environment check can run (and explain the problem) even when a required
+    package is missing. The application modules are imported on first use.
 """
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 from functools import cached_property
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from triage.config import Settings
-from triage.oci_clients import OciClients
-from triage.sandbox import SandboxManager, SandboxSession
+if TYPE_CHECKING:
+    from triage.config import Settings
+    from triage.oci_clients import OciClients
+    from triage.sandbox import SandboxManager, SandboxSession
 
 
 class Status(str, Enum):
@@ -81,19 +86,27 @@ class PreflightContext:
         project: The Generative AI project, once read.
     """
 
-    settings: Settings
+    settings: "Settings"
     keep_sandbox: bool = False
-    session: SandboxSession | None = None
+    session: "SandboxSession | None" = None
     project: Any = None
 
     @cached_property
-    def clients(self) -> OciClients:
+    def clients(self) -> "OciClients":
         """The OCI SDK clients, built on first use."""
+        from triage.oci_clients import (  # pylint: disable=import-outside-toplevel
+            OciClients,
+        )
+
         return OciClients(self.settings)
 
     @cached_property
-    def manager(self) -> SandboxManager:
+    def manager(self) -> "SandboxManager":
         """The sandbox manager for the configured project."""
+        from triage.sandbox import (  # pylint: disable=import-outside-toplevel
+            SandboxManager,
+        )
+
         return SandboxManager.from_settings(self.settings, self.clients)
 
 
