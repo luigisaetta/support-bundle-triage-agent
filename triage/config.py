@@ -75,6 +75,7 @@ class Settings:  # pylint: disable=too-many-instance-attributes
         sandbox_shape: Compute shape of new sandboxes.
         sandbox_lifetime_minutes: Lifetime of new sandboxes, in minutes.
         sandbox_max_command_seconds: Longest command the application runs.
+        sandbox_ready_timeout_seconds: Longest wait for a new sandbox to run.
         load_problems: Problems found while reading the configuration file.
     """
 
@@ -91,6 +92,7 @@ class Settings:  # pylint: disable=too-many-instance-attributes
     sandbox_shape: str
     sandbox_lifetime_minutes: int
     sandbox_max_command_seconds: int
+    sandbox_ready_timeout_seconds: int
     load_problems: tuple[str, ...] = field(default=(), compare=False)
 
     @classmethod
@@ -132,6 +134,9 @@ class Settings:  # pylint: disable=too-many-instance-attributes
             sandbox_max_command_seconds=config.integer(
                 "sandbox", "max_command_seconds", 300
             ),
+            sandbox_ready_timeout_seconds=config.integer(
+                "sandbox", "ready_timeout_seconds", 600
+            ),
             load_problems=tuple(config.problems),
         )
 
@@ -170,6 +175,8 @@ class Settings:  # pylint: disable=too-many-instance-attributes
             )
         if self.sandbox_max_command_seconds < 1:
             problems.append("sandbox.max_command_seconds must be a positive integer")
+        if self.sandbox_ready_timeout_seconds < 1:
+            problems.append("sandbox.ready_timeout_seconds must be a positive integer")
         return problems
 
     @property

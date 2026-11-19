@@ -26,10 +26,11 @@ from oci.exceptions import ServiceError
 
 from triage.llm import ModelClientFactory
 from triage.preflight.base import Check, CheckResult, PreflightContext
-from triage.sandbox import SandboxSession
+from triage.sandbox import SandboxError, SandboxSession
 
-#: Lifetime of the test sandbox: short, so a leftover ends on its own.
-TEST_SANDBOX_MINUTES = 10
+#: Lifetime of the test sandbox: short, so a leftover is stopped soon, but
+#: long enough for a slow cold start, the checks and a slow stop.
+TEST_SANDBOX_MINUTES = 20
 
 #: Tools the agent needs in the sandbox, and tools that are nice to have.
 REQUIRED_TOOLS = ("python3", "grep", "awk", "sed", "timeout")
@@ -65,6 +66,7 @@ class ConfigurationCheck(Check):
     """The settings are complete and valid."""
 
     name = "Configuration"
+    description = "reading config/settings.toml and .env"
 
     def run(self, context: PreflightContext) -> CheckResult:
         problems = context.settings.validate()
@@ -85,6 +87,7 @@ class OciCredentialsCheck(Check):
     """
 
     name = "OCI credentials"
+    description = "loading the OCI SDK profile"
 
     def run(self, context: PreflightContext) -> CheckResult:
         settings = context.settings
@@ -107,6 +110,7 @@ class ProjectCheck(Check):
     """The project is ACTIVE, has sandboxes enabled and denies outbound traffic."""
 
     name = "Project"
+    description = "reading the Generative AI project"
 
     def run(self, context: PreflightContext) -> CheckResult:
         project_id = context.settings.oci_project_id
@@ -149,6 +153,7 @@ class PermissionsCheck(Check):
     """The user can list the sandboxes of the project."""
 
     name = "Permissions"
+    description = "listing the sandboxes of the project"
 
     def run(self, context: PreflightContext) -> CheckResult:
         try:
@@ -170,6 +175,7 @@ class ModelCheck(Check):
     """The model answers through the Responses API and calls a function tool."""
 
     name = "Model"
+    description = "calling the model through the Responses API (a few seconds)"
 
     def run(self, context: PreflightContext) -> CheckResult:
         settings = context.settings
@@ -204,6 +210,7 @@ class SandboxStartCheck(Check):
     """A real sandbox can be created and reaches RUNNING."""
 
     name = "Sandbox"
+    description = "creating a test sandbox (a cold start can take minutes)"
 
     def run(self, context: PreflightContext) -> CheckResult:
         started = time.monotonic()
@@ -211,10 +218,17 @@ class SandboxStartCheck(Check):
             context.session = context.manager.create(
                 display_name=f"preflight-{time.strftime('%Y%m%d-%H%M%S')}",
                 lifetime_minutes=TEST_SANDBOX_MINUTES,
+                on_progress=context.progress,
             )
         except ServiceError as error:
             return CheckResult.failed(
-                f"HTTP {error.status}: {error.code}", _hint(error)
+                f"HTTP {error.status}: {error.code}", _hint(error) + _notes(error)
+            )
+        except SandboxError as error:
+            return CheckResult.failed(
+                str(error),
+                "Check the sandbox in the OCI Console (Generative AI > Projects)."
+                + _notes(error),
             )
         elapsed = time.monotonic() - started
         details = context.session.details()
@@ -227,6 +241,7 @@ class RuntimeToolsCheck(Check):
     """The runtime has the tools the agent needs, and /workspace is writable."""
 
     name = "Runtime tools"
+    description = "looking for the tools the agent needs"
 
     def run(self, context: PreflightContext) -> CheckResult:
         tools = REQUIRED_TOOLS + OPTIONAL_TOOLS
@@ -261,6 +276,7 @@ class FileTransferCheck(Check):
     """A binary file written to the sandbox reads back identical."""
 
     name = "File transfer"
+    description = "writing and reading back a 1 MiB file"
 
     def run(self, context: PreflightContext) -> CheckResult:
         session = _session(context)
@@ -282,6 +298,7 @@ class NetworkIsolationCheck(Check):
     """An outbound HTTPS request from the sandbox fails."""
 
     name = "Network isolation"
+    description = "trying an outbound HTTPS request (up to 5 s)"
 
     def run(self, context: PreflightContext) -> CheckResult:
         session = _session(context)
@@ -306,6 +323,7 @@ class CleanupCheck(Check):
     """The test sandbox is stopped and deleted, unless --keep was given."""
 
     name = "Cleanup"
+    description = "stopping and deleting the test sandbox (can take minutes)"
     always_run = True
 
     def run(self, context: PreflightContext) -> CheckResult:
@@ -317,7 +335,15 @@ class CleanupCheck(Check):
                 f"sandbox kept: {session.sandbox_id}",
                 f"It expires on its own after {TEST_SANDBOX_MINUTES} minutes.",
             )
-        session.close()
+        try:
+            session.close(on_progress=context.progress)
+        except SandboxError as error:
+            # The stop was requested; the service is just slow to finish it.
+            return CheckResult.warning(
+                str(error),
+                "The stop was requested and the service is slow to finish it. "
+                "Delete the sandbox from the OCI Console once it is STOPPED.",
+            )
         return CheckResult.passed("test sandbox stopped and deleted")
 
 
@@ -339,6 +365,11 @@ def _network_policy(sandbox_config) -> str:
     mode = str(networking.network_mode).upper()
     policy = getattr(networking, "network_policy", None)
     return f"{mode}/{str(policy.mode).upper()}" if policy is not None else mode
+
+
+def _notes(error: BaseException) -> str:
+    """The notes attached to an exception (for example, a failed cleanup)."""
+    return "".join(f" Note: {note}" for note in getattr(error, "__notes__", []))
 
 
 def _hint(error: ServiceError) -> str:

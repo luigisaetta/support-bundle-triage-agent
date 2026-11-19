@@ -12,7 +12,8 @@ Description: Building blocks of the preflight check: the result of one check,
 """
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from enum import Enum
 from functools import cached_property
 from typing import TYPE_CHECKING, Any
@@ -84,12 +85,15 @@ class PreflightContext:
         keep_sandbox: Leave the test sandbox running at the end.
         session: The test sandbox, once created.
         project: The Generative AI project, once read.
+        progress: Callback for short status messages during a long check
+            (for example "CREATING, 6 s"); set by the runner.
     """
 
     settings: "Settings"
     keep_sandbox: bool = False
     session: "SandboxSession | None" = None
     project: Any = None
+    progress: Callable[[str], None] = field(default=lambda message: None, repr=False)
 
     @cached_property
     def clients(self) -> "OciClients":
@@ -119,6 +123,10 @@ class Check(ABC):
 
     #: The label shown in the report.
     name: str = ""
+
+    #: What the check is doing, shown while it runs (for example "creating
+    #: a test sandbox (usually 10-30 s)").
+    description: str = ""
 
     #: Run even when an earlier check failed with a blocking failure.
     always_run: bool = False

@@ -13,7 +13,7 @@ import pytest
 
 from tests.unit.fakes import FakeSandboxClient
 from triage.sandbox import SandboxError, SandboxManager, SandboxSession
-from triage.sandbox import session as session_module
+from triage import sandbox as sandbox_module
 
 
 @pytest.fixture(name="client")
@@ -56,7 +56,7 @@ def test_file_round_trip(session):
 
 
 def test_large_file_is_written_in_parts(session, client, monkeypatch):
-    monkeypatch.setattr(session_module, "UPLOAD_CHUNK_BYTES", 1000)
+    monkeypatch.setattr(sandbox_module, "UPLOAD_CHUNK_BYTES", 1000)
     data = bytes(range(256)) * 20  # 5120 bytes: 6 parts
     session.write_file("/workspace/big.bin", data)
     assert session.read_file("/workspace/big.bin") == data
@@ -105,3 +105,47 @@ def test_create_cleans_up_a_sandbox_that_fails(tmp_path, monkeypatch):
     with pytest.raises(SandboxError):
         manager.create()
     assert "delete" in client.calls
+
+
+def test_create_tolerates_not_found_right_after_creation(tmp_path, monkeypatch):
+    monkeypatch.setattr("time.sleep", lambda _: None)
+    client = FakeSandboxClient(tmp_path, states=["404", "CREATING", "RUNNING"])
+    manager = SandboxManager(client, "ocid1.generativeaiproject.fake")
+    messages: list[str] = []
+    with manager.create(on_progress=messages.append) as session:
+        assert session.state() == "RUNNING"
+    assert messages[0].startswith("CREATING")
+
+
+def test_cleanup_waits_for_a_sandbox_still_creating(tmp_path, monkeypatch):
+    monkeypatch.setattr("time.sleep", lambda _: None)
+    client = FakeSandboxClient(tmp_path, states=["CREATING", "CREATING", "RUNNING"])
+    SandboxSession(client, "ocid1.sandbox.fake").close()
+    assert client.calls == ["stop", "delete"]
+
+
+def test_original_error_survives_a_failed_cleanup(tmp_path, monkeypatch):
+    monkeypatch.setattr("time.sleep", lambda _: None)
+    monkeypatch.setattr(sandbox_module, "FAILED_START_CLEANUP_SECONDS", 0.0)
+    client = FakeSandboxClient(tmp_path, states=["CREATING"])
+    manager = SandboxManager(
+        client, "ocid1.generativeaiproject.fake", ready_timeout_seconds=0
+    )
+    with pytest.raises(SandboxError) as caught:
+        manager.create()
+    assert "not RUNNING" in str(caught.value)
+    assert any("still CREATING" in note for note in caught.value.__notes__)
+
+
+def test_cleanup_waits_for_stopped_before_deleting(tmp_path, monkeypatch):
+    monkeypatch.setattr("time.sleep", lambda _: None)
+    client = FakeSandboxClient(tmp_path, states=["RUNNING"])
+    original_stop = client.stop_sandbox
+
+    def slow_stop(sandbox_id, details):
+        original_stop(sandbox_id, details)
+        client.queue_states(["STOPPING", "STOPPING", "STOPPED"])
+
+    client.stop_sandbox = slow_stop
+    SandboxSession(client, "ocid1.sandbox.fake").close()
+    assert client.calls == ["stop", "delete"]

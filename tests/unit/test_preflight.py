@@ -56,7 +56,7 @@ def test_blocking_failure_skips_later_checks_but_not_cleanup(monkeypatch):
         FixedCheck("cleanup", CheckResult.passed("ok"), always_run=True, ran=ran),
     ]
     output = io.StringIO()
-    results = PreflightRunner(checks, ConsoleReporter(output)).run(
+    results = PreflightRunner(checks, ConsoleReporter(4, output)).run(
         _context(monkeypatch)
     )
     assert ran == ["a", "b", "cleanup"]
@@ -75,14 +75,16 @@ def test_non_blocking_failure_lets_later_checks_run(monkeypatch):
         FixedCheck("a", CheckResult.failed("bad", blocking=False), ran=ran),
         FixedCheck("b", CheckResult.passed("ok"), ran=ran),
     ]
-    PreflightRunner(checks, ConsoleReporter(io.StringIO())).run(_context(monkeypatch))
+    PreflightRunner(checks, ConsoleReporter(2, io.StringIO())).run(
+        _context(monkeypatch)
+    )
     assert ran == ["a", "b"]
 
 
 def test_unexpected_exception_becomes_a_blocking_failure(monkeypatch):
     results = PreflightRunner(
         [BrokenCheck(), FixedCheck("next", CheckResult.passed("ok"))],
-        ConsoleReporter(io.StringIO()),
+        ConsoleReporter(2, io.StringIO()),
     ).run(_context(monkeypatch))
     assert results[0].status is Status.FAIL and "boom" in results[0].detail
     assert results[1].status is Status.SKIP

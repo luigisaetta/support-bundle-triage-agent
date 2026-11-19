@@ -118,9 +118,15 @@ class FakeSandboxClient:
         return SimpleNamespace(data=SimpleNamespace(id="ocid1.sandbox.fake"))
 
     def get_sandbox(self, sandbox_id):
-        """Return the next pending state, then the current one."""
+        """Return the next pending state, then the current one.
+
+        A pending state of "404" makes this call answer Not Found, as the
+        service may do for a sandbox created a moment ago.
+        """
         if self._pending_states:
             self.state = self._pending_states.pop(0)
+        if self.state == "404":
+            raise ServiceError(404, "NotFound", {}, "sandbox not visible yet")
         return SimpleNamespace(
             data=SimpleNamespace(
                 lifecycle_state=self.state, runtime="python-3.11", shape="SMALL"
@@ -128,11 +134,19 @@ class FakeSandboxClient:
         )
 
     def stop_sandbox(self, sandbox_id, details):
-        """Pretend to stop the sandbox."""
+        """Pretend to stop the sandbox; refused in the states the service refuses."""
+        if self.state not in {"RUNNING", "SUSPENDING", "SUSPENDED", "RESUMING"}:
+            raise ServiceError(409, "InvalidLifecycleState", {}, f"state={self.state}")
         self.calls.append("stop")
         self.state = "STOPPED"
 
+    def queue_states(self, states: list[str]) -> None:
+        """States returned by the next ``get_sandbox`` calls, in order."""
+        self._pending_states.extend(states)
+
     def delete_sandbox(self, sandbox_id):
-        """Pretend to delete the sandbox."""
+        """Pretend to delete the sandbox; refused unless STOPPED or FAILED."""
+        if self.state not in {"STOPPED", "FAILED"}:
+            raise ServiceError(409, "InvalidLifecycleState", {}, f"state={self.state}")
         self.calls.append("delete")
         self.state = "DELETED"

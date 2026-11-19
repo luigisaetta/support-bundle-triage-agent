@@ -8,9 +8,9 @@ Description: Command line entry point of the preflight check. Verifies, in
     model, and a real sandbox (created, probed and deleted).
 
     The run has two phases. First the local environment is checked using
-    only the standard library. The other checks, and the application modules
-    they need (OCI SDK, openai), are imported only if that first check
-    passes: a missing or outdated package is reported, not a traceback.
+    only the standard library. The other checks run only if that first check
+    passes, so a missing or outdated package is reported, not a traceback.
+    Each check is numbered and announced before it runs.
 
 Usage (from the repository root):
 
@@ -32,8 +32,8 @@ from triage.preflight.runner import ConsoleReporter, PreflightRunner
 def build_checks(quick: bool) -> list[Check]:
     """The checks that follow the local environment check, in order.
 
-    Their modules import the OCI SDK and openai, so call this only after
-    :class:`LocalEnvironmentCheck` has passed.
+    Their modules import the OCI SDK and openai, so this raises (for
+    example ImportError) when a required package is missing or outdated.
 
     Args:
         quick: Leave out the checks that create a sandbox.
@@ -102,22 +102,30 @@ def main(argv: list[str] | None = None) -> int:
         The process exit code: 0 when no check failed, 1 otherwise.
     """
     args = parse_args(argv)
-    reporter = ConsoleReporter()
+    import_error: Exception | None = None
+    try:
+        later_checks = build_checks(args.quick)
+    except Exception as error:  # pylint: disable=broad-exception-caught
+        later_checks, import_error = [], error  # the first check explains it
+    reporter = ConsoleReporter(total=1 + len(later_checks))
     print()
 
     # Phase 1: the local environment, with the standard library only.
     environment = LocalEnvironmentCheck()
+    reporter.start(environment)
     result = environment.run()
     reporter.result(environment, result)
     if result.status is Status.FAIL:
         reporter.summary([result])
         return 1
+    if import_error is not None:
+        raise import_error  # the packages look fine, yet the import failed
 
     # Phase 2: everything else; the required packages are now known to work.
     from triage.config import Settings  # pylint: disable=import-outside-toplevel
 
     context = PreflightContext(settings=Settings.load(), keep_sandbox=args.keep)
-    results = PreflightRunner(build_checks(args.quick), reporter).run(context)
+    results = PreflightRunner(later_checks, reporter).run(context)
     return 1 if any(result.status is Status.FAIL for result in results) else 0
 
 

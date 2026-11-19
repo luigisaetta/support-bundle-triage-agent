@@ -29,6 +29,7 @@ class LocalEnvironmentCheck(Check):
     """Python is recent enough and the required packages are installed."""
 
     name = "Local environment"
+    description = "checking Python and the required packages"
 
     def run(self, context: PreflightContext | None = None) -> CheckResult:
         python = f"Python {sys.version.split()[0]} ({sys.executable})"
