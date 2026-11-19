@@ -2,26 +2,45 @@
 Author: L. Saetta
 Date Last Modified: 2026-11-19
 License: MIT
-Description: Application settings. All configuration is read from environment
-    variables, optionally loaded from a .env file in the repository root (see
-    .env.example). Settings are immutable once loaded; validate() reports what
-    is missing or invalid without raising, so callers such as the preflight
-    check can explain the problem to the user.
+Description: Application settings, from two sources:
+
+    - config/settings.toml: all configuration (model, OCI, sandbox). It holds
+      no secrets and is versioned.
+    - .env (or the environment): secrets only, the API keys. Never committed;
+      see .env.example.
+
+    Settings are immutable once loaded. Loading never raises: problems such as
+    a missing file or an invalid value are collected, and validate() reports
+    them, so callers like the preflight check can explain them to the user.
 
 Usage:
 
     from triage.config import Settings
 
-    settings = Settings.from_env()
+    settings = Settings.load()
     problems = settings.validate()
 """
 
 import os
-from dataclasses import dataclass
+import tomllib
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
+from typing import Any
 
 from dotenv import load_dotenv
+
+#: The configuration file, relative to the repository root.
+DEFAULT_SETTINGS_FILE = Path("config/settings.toml")
+
+#: The secrets file, relative to the repository root.
+DEFAULT_ENV_FILE = Path(".env")
+
+#: Compute shapes offered by OCI Sandboxes.
+SANDBOX_SHAPES = ("SMALL", "MEDIUM", "LARGE")
+
+#: The longest initial lifetime of a sandbox: 48 hours.
+MAX_LIFETIME_MINUTES = 48 * 60
 
 
 class ModelProvider(str, Enum):
@@ -36,13 +55,6 @@ class OciAuth(str, Enum):
 
     API_KEY = "api_key"
     SECURITY_TOKEN = "security_token"
-
-
-#: Compute shapes offered by OCI Sandboxes.
-SANDBOX_SHAPES = ("SMALL", "MEDIUM", "LARGE")
-
-#: The longest initial lifetime of a sandbox: 48 hours.
-MAX_LIFETIME_MINUTES = 48 * 60
 
 
 @dataclass(frozen=True)
@@ -63,12 +75,13 @@ class Settings:  # pylint: disable=too-many-instance-attributes
         sandbox_shape: Compute shape of new sandboxes.
         sandbox_lifetime_minutes: Lifetime of new sandboxes, in minutes.
         sandbox_max_command_seconds: Longest command the application runs.
+        load_problems: Problems found while reading the configuration file.
     """
 
     model_provider: ModelProvider
     model_id: str
-    oci_genai_api_key: str
-    openai_api_key: str
+    oci_genai_api_key: str = field(repr=False)
+    openai_api_key: str = field(repr=False)
     oci_region: str
     oci_project_id: str
     oci_config_file: Path
@@ -78,39 +91,48 @@ class Settings:  # pylint: disable=too-many-instance-attributes
     sandbox_shape: str
     sandbox_lifetime_minutes: int
     sandbox_max_command_seconds: int
+    load_problems: tuple[str, ...] = field(default=(), compare=False)
 
     @classmethod
-    def from_env(cls, env_file: Path | None = None) -> "Settings":
-        """Load the settings from the environment and an optional .env file.
+    def load(
+        cls,
+        settings_file: Path = DEFAULT_SETTINGS_FILE,
+        env_file: Path = DEFAULT_ENV_FILE,
+    ) -> "Settings":
+        """Load the configuration file and the secrets.
 
-        Values already set in the environment win over the .env file.
-        Invalid enum or integer values are kept as safe defaults here and
-        reported by :meth:`validate` through the raw environment.
+        Secrets already set in the environment win over the .env file.
+        A missing or invalid value falls back to its default and is recorded
+        in :attr:`load_problems`.
 
         Args:
-            env_file: The .env file to load. Defaults to ``.env`` in the
-                current directory, if it exists.
+            settings_file: The TOML configuration file.
+            env_file: The .env file with the secrets; optional.
 
         Returns:
             The loaded settings.
         """
-        load_dotenv(env_file or Path(".env"), override=False)
+        config = TomlConfig.from_file(settings_file)
+        load_dotenv(env_file, override=False)
         return cls(
-            model_provider=_enum(ModelProvider, "MODEL_PROVIDER", ModelProvider.OCI),
-            model_id=_text("MODEL_ID"),
-            oci_genai_api_key=_text("OCI_GENAI_API_KEY"),
-            openai_api_key=_text("OPENAI_API_KEY"),
-            oci_region=_text("OCI_REGION"),
-            oci_project_id=_text("OCI_PROJECT_ID"),
+            model_provider=config.choice("model", "provider", ModelProvider.OCI),
+            model_id=config.text("model", "id"),
+            oci_genai_api_key=_secret("OCI_GENAI_API_KEY"),
+            openai_api_key=_secret("OPENAI_API_KEY"),
+            oci_region=config.text("oci", "region"),
+            oci_project_id=config.text("oci", "project_id"),
             oci_config_file=Path(
-                _text("OCI_CONFIG_FILE", "~/.oci/config")
+                config.text("oci", "config_file", "~/.oci/config")
             ).expanduser(),
-            oci_profile=_text("OCI_PROFILE", "DEFAULT"),
-            oci_auth=_enum(OciAuth, "OCI_AUTH", OciAuth.API_KEY),
-            sandbox_runtime=_text("SANDBOX_RUNTIME", "python-3.11"),
-            sandbox_shape=_text("SANDBOX_SHAPE", "SMALL").upper(),
-            sandbox_lifetime_minutes=_integer("SANDBOX_LIFETIME_MINUTES", 60),
-            sandbox_max_command_seconds=_integer("SANDBOX_MAX_COMMAND_SECONDS", 300),
+            oci_profile=config.text("oci", "profile", "DEFAULT"),
+            oci_auth=config.choice("oci", "auth", OciAuth.API_KEY),
+            sandbox_runtime=config.text("sandbox", "runtime", "python-3.11"),
+            sandbox_shape=config.text("sandbox", "shape", "SMALL").upper(),
+            sandbox_lifetime_minutes=config.integer("sandbox", "lifetime_minutes", 60),
+            sandbox_max_command_seconds=config.integer(
+                "sandbox", "max_command_seconds", 300
+            ),
+            load_problems=tuple(config.problems),
         )
 
     def validate(self) -> list[str]:
@@ -118,23 +140,20 @@ class Settings:  # pylint: disable=too-many-instance-attributes
 
         Returns:
             One human-readable message per problem; empty when all is well.
+            Configuration keys are named as in the TOML file (for example
+            ``oci.project_id``), secrets by their variable name.
         """
-        problems: list[str] = []
-
-        for name, choices in (("MODEL_PROVIDER", ModelProvider), ("OCI_AUTH", OciAuth)):
-            raw = _text(name).lower()
-            if raw and raw not in {choice.value for choice in choices}:
-                problems.append(f"{name} has an invalid value: {raw!r}")
+        problems = list(self.load_problems)
 
         required = {
-            "MODEL_ID": self.model_id,
-            "OCI_REGION": self.oci_region,
-            "OCI_PROJECT_ID": self.oci_project_id,
+            "model.id": self.model_id,
+            "oci.region": self.oci_region,
+            "oci.project_id": self.oci_project_id,
         }
         if self.model_provider is ModelProvider.OCI:
-            required["OCI_GENAI_API_KEY"] = self.oci_genai_api_key
+            required["OCI_GENAI_API_KEY (.env)"] = self.oci_genai_api_key
         else:
-            required["OPENAI_API_KEY"] = self.openai_api_key
+            required["OPENAI_API_KEY (.env)"] = self.openai_api_key
         problems += [
             f"{name} is not set" for name, value in required.items() if not value
         ]
@@ -142,15 +161,15 @@ class Settings:  # pylint: disable=too-many-instance-attributes
         if self.oci_project_id and not self.oci_project_id.startswith(
             "ocid1.generativeaiproject."
         ):
-            problems.append("OCI_PROJECT_ID is not a Generative AI project OCID")
+            problems.append("oci.project_id is not a Generative AI project OCID")
         if self.sandbox_shape not in SANDBOX_SHAPES:
-            problems.append(f"SANDBOX_SHAPE must be one of {', '.join(SANDBOX_SHAPES)}")
+            problems.append(f"sandbox.shape must be one of {', '.join(SANDBOX_SHAPES)}")
         if not 1 <= self.sandbox_lifetime_minutes <= MAX_LIFETIME_MINUTES:
             problems.append(
-                f"SANDBOX_LIFETIME_MINUTES must be between 1 and {MAX_LIFETIME_MINUTES}"
+                f"sandbox.lifetime_minutes must be between 1 and {MAX_LIFETIME_MINUTES}"
             )
         if self.sandbox_max_command_seconds < 1:
-            problems.append("SANDBOX_MAX_COMMAND_SECONDS must be a positive integer")
+            problems.append("sandbox.max_command_seconds must be a positive integer")
         return problems
 
     @property
@@ -172,26 +191,80 @@ class Settings:  # pylint: disable=too-many-instance-attributes
         )
 
 
-def _text(name: str, default: str = "") -> str:
-    """An environment variable as a stripped string."""
-    return os.environ.get(name, default).strip()
+class TomlConfig:
+    """Typed, forgiving access to the values of a TOML configuration file.
+
+    Each getter returns the value of ``[section] key``, or a default when it
+    is missing. A value of the wrong type or outside its allowed choices is
+    replaced by the default and recorded in :attr:`problems`.
+
+    Args:
+        data: The parsed TOML document.
+        problems: Problems already found (for example, while reading the file).
+    """
+
+    def __init__(self, data: dict[str, Any], problems: list[str] | None = None) -> None:
+        self._data = data
+        self.problems: list[str] = problems or []
+
+    @classmethod
+    def from_file(cls, path: Path) -> "TomlConfig":
+        """Read and parse a TOML file.
+
+        Args:
+            path: The file to read.
+
+        Returns:
+            The configuration; empty, with a recorded problem, if the file is
+            missing or is not valid TOML.
+        """
+        try:
+            with open(path, "rb") as file:
+                return cls(tomllib.load(file))
+        except FileNotFoundError:
+            return cls({}, [f"configuration file {path} not found"])
+        except tomllib.TOMLDecodeError as error:
+            return cls({}, [f"{path} is not valid TOML: {error}"])
+
+    def text(self, section: str, key: str, default: str = "") -> str:
+        """A string value, stripped of surrounding spaces."""
+        value = self._value(section, key)
+        if value is None:
+            return default
+        if not isinstance(value, str):
+            self.problems.append(f"{section}.{key} must be a string")
+            return default
+        return value.strip()
+
+    def integer(self, section: str, key: str, default: int) -> int:
+        """An integer value."""
+        value = self._value(section, key)
+        if value is None:
+            return default
+        if isinstance(value, bool) or not isinstance(value, int):
+            self.problems.append(f"{section}.{key} must be an integer")
+            return default
+        return value
+
+    def choice(self, section: str, key: str, default: Enum) -> Any:
+        """A value that must be one of the members of ``default``'s enum."""
+        raw = self.text(section, key).lower()
+        if not raw:
+            return default
+        enum_type = type(default)
+        try:
+            return enum_type(raw)
+        except ValueError:
+            allowed = ", ".join(member.value for member in enum_type)
+            self.problems.append(f"{section}.{key} must be one of: {allowed}")
+            return default
+
+    def _value(self, section: str, key: str) -> Any:
+        """The raw value of ``[section] key``, or None when it is missing."""
+        table = self._data.get(section)
+        return table.get(key) if isinstance(table, dict) else None
 
 
-def _integer(name: str, default: int) -> int:
-    """An environment variable as an integer; -1 when it is not a number."""
-    raw = _text(name)
-    if not raw:
-        return default
-    try:
-        return int(raw)
-    except ValueError:
-        return -1
-
-
-def _enum(enum_type: type[Enum], name: str, default: Enum):
-    """An environment variable as a member of ``enum_type``, or ``default``."""
-    raw = _text(name).lower()
-    try:
-        return enum_type(raw) if raw else default
-    except ValueError:
-        return default
+def _secret(name: str) -> str:
+    """A secret from the environment (or .env), stripped of surrounding spaces."""
+    return os.environ.get(name, "").strip()

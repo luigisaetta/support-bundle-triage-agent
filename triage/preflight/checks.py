@@ -6,7 +6,7 @@ Description: The preflight checks, in the order they run. Each check verifies
     one thing and, when it fails, says how to fix it:
 
      1. LocalEnvironmentCheck   Python and the required packages
-     2. ConfigurationCheck      the settings in .env
+     2. ConfigurationCheck      config/settings.toml and the secrets in .env
      3. OciCredentialsCheck     the OCI SDK profile can be loaded
      4. ProjectCheck            project ACTIVE, sandboxes enabled, DENY_ALL network
      5. PermissionsCheck        sandboxes can be listed; leftovers reported
@@ -116,7 +116,8 @@ class ConfigurationCheck(Check):
         if problems:
             return CheckResult.failed(
                 "; ".join(problems),
-                "Edit .env (start from .env.example) and set the missing values.",
+                "Edit config/settings.toml; put the API key in .env "
+                "(start from .env.example).",
             )
         return CheckResult.passed(context.settings.describe())
 
@@ -139,7 +140,7 @@ class OciCredentialsCheck(Check):
             return CheckResult.failed(
                 f"{type(error).__name__}: {error}",
                 f"Check {settings.oci_config_file}, profile [{settings.oci_profile}] "
-                f"and OCI_AUTH={settings.oci_auth.value}. For session tokens run: "
+                f"and oci.auth = {settings.oci_auth.value!r}. For session tokens run: "
                 f"oci session authenticate --profile-name {settings.oci_profile}",
             )
         return CheckResult.passed(
@@ -229,8 +230,8 @@ class ModelCheck(Check):
         except Exception as error:  # pylint: disable=broad-exception-caught
             return CheckResult.failed(
                 f"{type(error).__name__}: {str(error)[:160]}",
-                "Check MODEL_ID, the API key and, for OCI, that the model is "
-                "available in OCI_REGION.",
+                "Check model.id, the API key in .env and, for OCI, that the model "
+                "is available in oci.region.",
             )
         elapsed = time.monotonic() - started
         called = [item for item in response.output if item.type == "function_call"]
@@ -291,7 +292,7 @@ class RuntimeToolsCheck(Check):
         if missing:
             return CheckResult.failed(
                 f"missing: {', '.join(missing)}",
-                "Use a runtime that includes them (SANDBOX_RUNTIME).",
+                "Use a runtime that includes them (sandbox.runtime).",
                 blocking=False,
             )
         absent = [tool for tool in OPTIONAL_TOOLS if found.get(tool) != "yes"]
@@ -394,7 +395,7 @@ def _hint(error: ServiceError) -> str:
         )
     if error.status == 404:
         return (
-            "Not found or not authorized: check OCI_PROJECT_ID, that OCI_REGION is "
+            "Not found or not authorized: check oci.project_id, that oci.region is "
             "the project's region, and the IAM policies (manage "
             "generative-ai-sandbox, read generative-ai-project)."
         )

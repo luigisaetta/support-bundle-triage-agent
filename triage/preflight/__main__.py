@@ -94,7 +94,7 @@ def main(argv: list[str] | None = None) -> int:
         The process exit code: 0 when no check failed, 1 otherwise.
     """
     args = parse_args(argv)
-    context = PreflightContext(settings=Settings.from_env(), keep_sandbox=args.keep)
+    context = PreflightContext(settings=Settings.load(), keep_sandbox=args.keep)
     runner = PreflightRunner(build_checks(args.quick), ConsoleReporter())
     print()
     results = runner.run(context)

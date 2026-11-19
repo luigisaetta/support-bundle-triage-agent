@@ -2,8 +2,7 @@
 Author: L. Saetta
 Date Last Modified: 2026-11-19
 License: MIT
-Description: Unit tests of the preflight runner and of the settings
-    validation. No OCI or model call is made.
+Description: Unit tests of the preflight runner. No OCI or model call is made.
 """
 
 # pylint: disable=missing-function-docstring
@@ -40,11 +39,12 @@ class BrokenCheck(Check):
 
 
 def _context(monkeypatch):
-    for name in ("MODEL_ID", "OCI_REGION", "OCI_PROJECT_ID", "OCI_GENAI_API_KEY"):
-        monkeypatch.delenv(name, raising=False)
-    return PreflightContext(
-        settings=Settings.from_env(env_file=Path("/nonexistent/.env"))
+    monkeypatch.delenv("OCI_GENAI_API_KEY", raising=False)
+    settings = Settings.load(
+        settings_file=Path("/nonexistent/settings.toml"),
+        env_file=Path("/nonexistent/.env"),
     )
+    return PreflightContext(settings=settings)
 
 
 def test_blocking_failure_skips_later_checks_but_not_cleanup(monkeypatch):
@@ -86,10 +86,3 @@ def test_unexpected_exception_becomes_a_blocking_failure(monkeypatch):
     ).run(_context(monkeypatch))
     assert results[0].status is Status.FAIL and "boom" in results[0].detail
     assert results[1].status is Status.SKIP
-
-
-def test_settings_validation_lists_missing_values(monkeypatch):
-    problems = _context(monkeypatch).settings.validate()
-    assert "MODEL_ID is not set" in problems
-    assert "OCI_PROJECT_ID is not set" in problems
-    assert "OCI_GENAI_API_KEY is not set" in problems

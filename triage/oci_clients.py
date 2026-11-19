@@ -11,7 +11,7 @@ Description: Builds the OCI SDK clients the application needs, from the
       to read the sandbox configuration of the project.
 
     Both sign their requests with an API key or a session token (created with
-    "oci session authenticate"), as set in OCI_AUTH.
+    "oci session authenticate"), as set in oci.auth.
 
 Usage:
 

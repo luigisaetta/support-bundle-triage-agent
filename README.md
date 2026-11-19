@@ -7,9 +7,11 @@ command runs inside an isolated OCI Sandbox.
 ## Layout
 
 ```
-config/                  OCI project configuration (sandboxes, DENY_ALL network)
+config/
+  settings.toml          configuration (model, OCI, sandbox); versioned, no secrets
+  sandbox-project-deny-all.json   OCI project: sandboxes enabled, DENY_ALL network
 triage/
-  config.py              settings, read from .env
+  config.py              settings: config/settings.toml + secrets in .env
   oci_clients.py         OCI SDK clients (sandbox and Generative AI)
   llm.py                 OpenAI client for the configured provider
   sandbox/
@@ -26,7 +28,8 @@ docs/  labs/  bundles/   documentation, lab guides, sample bundles
 
 ```bash
 pip install -r requirements.txt
-cp .env.example .env        # then fill in your values
+cp .env.example .env        # secrets only: the API key
+# edit config/settings.toml  # model, region, project OCID, sandbox
 python -m triage.preflight  # add --quick to skip the sandbox checks
 ```
 
