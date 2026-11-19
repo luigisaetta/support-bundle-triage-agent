@@ -1,0 +1,20 @@
+[project]
+name = "support-triage-lab"
+version = "0.1.0"
+description = "Support Bundle Triage Agent: OpenAI Responses API + OCI Sandboxes (LiveLabs)"
+requires-python = ">=3.11"
+dependencies = [
+    "oci>=2.189.0",
+    "openai>=2.0",
+    "python-dotenv>=1.0",
+]
+
+[tool.black]
+line-length = 88
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.pylint."messages control"]
+disable = ["too-few-public-methods"]

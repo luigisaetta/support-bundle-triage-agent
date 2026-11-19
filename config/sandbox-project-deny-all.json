@@ -1,0 +1,9 @@
+{
+  "isEnabled": true,
+  "sandboxOutboundNetworkingConfig": {
+    "networkMode": "MANAGED",
+    "networkPolicy": {
+      "mode": "DENY_ALL"
+    }
+  }
+}
