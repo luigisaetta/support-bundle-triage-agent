@@ -473,6 +473,8 @@ class SandboxManager:
         shape: Compute shape: ``SMALL``, ``MEDIUM`` or ``LARGE``.
         lifetime_minutes: Lifetime of new sandboxes (at most 48 hours).
         ready_timeout_seconds: The longest wait for a new sandbox to run.
+        warm_pool: Name of a warm pool of the project; new sandboxes are
+            taken from it. None starts them cold.
     """
 
     def __init__(  # pylint: disable=too-many-arguments
@@ -484,6 +486,7 @@ class SandboxManager:
         shape: str = "SMALL",
         lifetime_minutes: int = 60,
         ready_timeout_seconds: float = READY_TIMEOUT_SECONDS,
+        warm_pool: str | None = None,
     ) -> None:
         self._client = client
         self._project_id = project_id
@@ -491,6 +494,7 @@ class SandboxManager:
         self._shape = shape
         self._lifetime_minutes = lifetime_minutes
         self._ready_timeout_seconds = ready_timeout_seconds
+        self._warm_pool = warm_pool or None
 
     @classmethod
     def from_settings(cls, settings: Settings, clients: OciClients) -> "SandboxManager":
@@ -507,6 +511,7 @@ class SandboxManager:
             shape=settings.sandbox_shape,
             lifetime_minutes=settings.sandbox_lifetime_minutes,
             ready_timeout_seconds=settings.sandbox_ready_timeout_seconds,
+            warm_pool=settings.sandbox_warm_pool,
         )
 
     def create(
@@ -534,6 +539,7 @@ class SandboxManager:
             runtime=self._runtime,
             shape=self._shape,
             expires_in_minutes=lifetime_minutes or self._lifetime_minutes,
+            warmpool_name=self._warm_pool,
         )
         return self._start(details, on_progress)
 

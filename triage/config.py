@@ -76,6 +76,8 @@ class Settings:  # pylint: disable=too-many-instance-attributes
         sandbox_lifetime_minutes: Lifetime of new sandboxes, in minutes.
         sandbox_max_command_seconds: Longest command the application runs.
         sandbox_ready_timeout_seconds: Longest wait for a new sandbox to run.
+        sandbox_warm_pool: Name of the project's warm pool to start sandboxes
+            from; empty to start them cold.
         load_problems: Problems found while reading the configuration file.
     """
 
@@ -93,6 +95,7 @@ class Settings:  # pylint: disable=too-many-instance-attributes
     sandbox_lifetime_minutes: int
     sandbox_max_command_seconds: int
     sandbox_ready_timeout_seconds: int
+    sandbox_warm_pool: str
     load_problems: tuple[str, ...] = field(default=(), compare=False)
 
     @classmethod
@@ -137,6 +140,7 @@ class Settings:  # pylint: disable=too-many-instance-attributes
             sandbox_ready_timeout_seconds=config.integer(
                 "sandbox", "ready_timeout_seconds", 600
             ),
+            sandbox_warm_pool=config.text("sandbox", "warm_pool"),
             load_problems=tuple(config.problems),
         )
 

@@ -38,3 +38,7 @@ max_command_seconds = 300
 # Longest wait for a new sandbox to reach RUNNING, in seconds. A cold start
 # can take several minutes; a warm pool in the project makes it faster.
 ready_timeout_seconds = 1800
+# Warm pool of the project to take new sandboxes from (its shape must match
+# "shape" above); empty to start sandboxes cold. Pools are created with the
+# project, in the OCI Console.
+warm_pool = ""
