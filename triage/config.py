@@ -116,7 +116,7 @@ class Settings:  # pylint: disable=too-many-instance-attributes
         load_dotenv(env_file, override=False)
         return cls(
             model_provider=config.choice("model", "provider", ModelProvider.OCI),
-            model_id=config.text("model", "id"),
+            model_id=config.text("model", "model_id"),
             oci_genai_api_key=_secret("OCI_GENAI_API_KEY"),
             openai_api_key=_secret("OPENAI_API_KEY"),
             oci_region=config.text("oci", "region"),
@@ -146,7 +146,7 @@ class Settings:  # pylint: disable=too-many-instance-attributes
         problems = list(self.load_problems)
 
         required = {
-            "model.id": self.model_id,
+            "model.model_id": self.model_id,
             "oci.region": self.oci_region,
             "oci.project_id": self.oci_project_id,
         }

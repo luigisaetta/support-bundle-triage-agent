@@ -17,7 +17,7 @@ from triage.config import ModelProvider, OciAuth, Settings
 VALID_TOML = """
 [model]
 provider = "openai"
-id = "gpt-test"
+model_id = "gpt-test"
 
 [oci]
 region = "eu-frankfurt-1"
@@ -76,7 +76,7 @@ def test_missing_file_is_reported(tmp_path):
     settings = Settings.load(settings_file=tmp_path / "nope.toml", env_file=NO_ENV_FILE)
     problems = settings.validate()
     assert any("not found" in problem for problem in problems)
-    assert "model.id is not set" in problems
+    assert "model.model_id is not set" in problems
     assert "oci.project_id is not set" in problems
     assert "OCI_GENAI_API_KEY (.env) is not set" in problems
 

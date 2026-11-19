@@ -230,7 +230,7 @@ class ModelCheck(Check):
         except Exception as error:  # pylint: disable=broad-exception-caught
             return CheckResult.failed(
                 f"{type(error).__name__}: {str(error)[:160]}",
-                "Check model.id, the API key in .env and, for OCI, that the model "
+                "Check model.model_id, the API key in .env and, for OCI, that the model "
                 "is available in oci.region.",
             )
         elapsed = time.monotonic() - started

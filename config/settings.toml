@@ -8,14 +8,14 @@
 provider = "oci"
 # An OpenAI GPT model: the OCI model id (for example "openai.gpt-...") or the
 # OpenAI model name, depending on the provider.
-id = ""
+model_id = ""
 
 [oci]
 # Region of the Generative AI project and its sandboxes.
 region = "eu-frankfurt-1"
 # OCID of the Generative AI project with sandboxes enabled and outbound
 # network DENY_ALL (created in Lab 0 with config/sandbox-project-deny-all.json).
-project_id = ""
+project_id = "ocid1.generativeaiproject.oc1.eu-frankfurt-1.amaaaaaa2xxap7yakn62kgu3rld6vhe7vb6ojo2kulpgnae5utmuwjbzsoqa"
 # OCI SDK configuration file and profile.
 config_file = "~/.oci/config"
 profile = "DEFAULT"
