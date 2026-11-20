@@ -30,6 +30,8 @@ triage/
   oci_clients.py         OCI SDK clients                              (provided)
   llm.py                 OpenAI client for the configured provider    (provided)
   sandbox.py             SandboxManager, SandboxSession, CommandResult (provided)
+  ingest.py              safe upload of a bundle zip into the sandbox (provided)
+  make_bundle.py         writes the sample bundle                    (provided)
   preflight/             environment check: python -m triage.preflight (provided)
   tools.py               function tools over a SandboxSession         (Lab 1)
   agent.py               Responses API loop with function calling     (Lab 2)
@@ -48,7 +50,8 @@ solutions/               reference solutions, for humans only: do not read (see 
 
 - `AGENTS.md`.
 - The provided modules: `triage/config.py`, `triage/oci_clients.py`,
-  `triage/llm.py`, `triage/sandbox.py`, `triage/preflight/`, and any other file
+  `triage/llm.py`, `triage/sandbox.py`, `triage/ingest.py`,
+  `triage/make_bundle.py`, `triage/preflight/`, and any other file
   marked "(provided)" above.
 - Existing tests, in `tests/unit/` and `tests/labN/`. Make them pass by fixing
   your code, never by editing, skipping or deleting a test.
