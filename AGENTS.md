@@ -38,6 +38,8 @@ triage/
 tests/unit/              unit tests and fakes (fakes.py)
 tests/labN/              acceptance tests of lab N
 docs/  labs/  bundles/   design notes, lab guides, sample bundles
+prompts/                 the prompt of each lab (labN.md)
+solutions/               reference solutions, for humans only: do not read (see below)
 ```
 
 ## Rules
@@ -55,6 +57,18 @@ docs/  labs/  bundles/   design notes, lab guides, sample bundles
 
 If the task seems to need a change in one of these files, stop and explain why
 to the user.
+
+### Reference solutions: do not read them
+
+`solutions/` holds the reference solution of each lab. It is there for the
+participant, who may read it or copy it to catch up. It is not for you.
+
+- Do not open, read, search, import or copy anything in `solutions/`. Write the
+  code of the lab from the lab's prompt, its guide and its tests.
+- The only exception: the user explicitly asks you to use a solution (for
+  example "copy solutions/lab1/tools.py into triage/").
+- The code of earlier labs that you build on is in `triage/` (for example
+  `triage/tools.py` from Lab 1), not in `solutions/`.
 
 ### Scope
 
