@@ -9,7 +9,8 @@
 Prepare everything the next labs need, and prove that it works:
 
 - a Python environment with the required packages;
-- an OCI Generative AI project with sandboxes enabled and no outbound network;
+- an OCI Generative AI project with server-side conversations, short-term
+  memory, and sandboxes with no outbound network;
 - the configuration of the agent (model, region, project);
 - a model that answers through the Responses API and calls a function tool;
 - a sandbox that starts, runs commands, moves files and cannot reach the
@@ -20,8 +21,17 @@ run and tells you what to fix.
 
 ## Concepts
 
-- **OCI Generative AI project.** Sandboxes belong to a project. The project
-  decides whether sandboxes are enabled and what network they get.
+- **OCI Generative AI project.** Conversations and sandboxes belong to a
+  project. The project decides how long conversations are kept, whether
+  sandboxes are enabled and what network they get.
+- **Server-side conversation.** The agent calls the Responses API with
+  `store=True`: OCI keeps the conversation, and each call continues it with
+  `previous_response_id` instead of resending the whole history.
+- **Short-term memory.** As an investigation grows, OCI condenses the older
+  part of the conversation with a compaction model
+  (`openai.gpt-oss-120b`), so long conversations stay within the context of
+  the model. We enable only short-term memory; long-term memory (across
+  conversations) is not used.
 - **Network policy.** We use `MANAGED` networking with `DENY_ALL`: code in the
   sandbox cannot reach the internet, so a hostile bundle cannot send data out.
   The policy limits only outbound traffic; your machine still drives the
@@ -58,18 +68,32 @@ pip install -r requirements.txt -r requirements-dev.txt
 
 ### 2. Create the Generative AI project
 
-The project enables sandboxes and denies outbound network
-(`config/sandbox-project-deny-all.json`):
+The project settings are in `config/`:
+
+| Setting | File | Value |
+|---------|------|-------|
+| Conversation | `project-conversation.json` | enabled, conversations and responses kept 720 hours |
+| Short-term memory | `project-short-term-memory.json` | enabled, compaction model `openai.gpt-oss-120b` |
+| Long-term memory | — | not enabled |
+| Sandboxes | `sandbox-project-deny-all.json` | enabled, `MANAGED` network, `DENY_ALL` |
 
 ```bash
 oci generative-ai generative-ai-project create \
   --compartment-id <compartment-ocid> \
   --display-name support-triage \
+  --conversation-config file://config/project-conversation.json \
+  --short-term-memory-optimization-config file://config/project-short-term-memory.json \
   --sandbox-config file://config/sandbox-project-deny-all.json
 ```
 
+Or, in the OCI Console: create the project, enable conversations and
+short-term memory with `openai.gpt-oss-120b` as the compaction model, leave
+long-term memory off, enable sandboxes with managed networking and
+`DENY_ALL`.
+
 Write down the OCID of the new project (`ocid1.generativeaiproject...`).
-You can also create it in the OCI Console, with the same settings.
+The network policy cannot be changed later: if it is wrong, create a new
+project.
 
 ### 3. Configure the agent
 
@@ -95,7 +119,10 @@ python -m triage.preflight --quick
 ```
 
 It checks your environment, the configuration, the OCI credentials, the
-project and your permissions, and calls the model once. It takes a few seconds
+project (conversations, short-term memory, sandboxes, network) and your
+permissions. Then it calls the model twice: the model calls a tool, and the
+second call continues the same conversation on the server, sending only the
+tool output and `previous_response_id`, as the agent will do. It takes a few seconds
 and creates no sandbox. Each failed check prints a hint (`→ ...`): fix it and
 run the preflight again.
 
@@ -117,8 +144,8 @@ A successful run looks like this (shortened):
 
 ```
  ✔ [ 1/11] Local environment  Python 3.12.0 (...), oci 2.192.0, openai 3.55.1, ...
- ✔ [ 4/11] Project            support-triage: ACTIVE, sandboxes enabled, network MANAGED/DENY_ALL
- ✔ [ 6/11] Model              openai.gpt-... called get_utc_time (2.3 s)
+ ✔ [ 4/11] Project            support-triage: ACTIVE, conversations 720 h, short-term memory (openai.gpt-oss-120b), sandboxes enabled, network MANAGED/DENY_ALL
+ ✔ [ 6/11] Model              openai.gpt-... called get_utc_time, conversation continued on the server (4.4 s)
  ✔ [ 7/11] Sandbox            RUNNING in ... s (python-3.11, SMALL)
  ✔ [ 8/11] Runtime tools      python3 grep awk sed timeout unzip curl
  ✔ [ 9/11] File transfer      1 MiB written and read back intact (2.0 s)

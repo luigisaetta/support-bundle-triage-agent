@@ -1,6 +1,6 @@
 """
 Author: L. Saetta
-Date Last Modified: 2026-11-19
+Date Last Modified: 2026-11-20
 License: MIT
 Description: The preflight checks, in the order they run. Each check verifies
     one thing and, when it fails, says how to fix it:
@@ -8,9 +8,11 @@ Description: The preflight checks, in the order they run. Each check verifies
      1. LocalEnvironmentCheck   Python and the required packages (environment.py)
      2. ConfigurationCheck      config/settings.toml and the secrets in .env
      3. OciCredentialsCheck     the OCI SDK profile can be loaded
-     4. ProjectCheck            project ACTIVE, sandboxes enabled, DENY_ALL network
+     4. ProjectCheck            project ACTIVE, conversations and short-term
+                                memory on, sandboxes enabled, DENY_ALL network
      5. PermissionsCheck        sandboxes can be listed; leftovers reported
-     6. ModelCheck              the model answers and calls a tool
+     6. ModelCheck              the model calls a tool and the conversation
+                                continues on the server (store=True)
      7. SandboxStartCheck       a real sandbox reaches RUNNING
      8. RuntimeToolsCheck       the tools the agent needs are in the runtime
      9. FileTransferCheck       a file round-trips intact
@@ -61,6 +63,9 @@ TIME_TOOL = {
     "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
 }
 
+#: The answer sent back for the time tool in the second call of ModelCheck.
+TIME_TOOL_OUTPUT = '{"utc": "2026-01-01T12:00:00Z"}'
+
 
 class ConfigurationCheck(Check):
     """The settings are complete and valid."""
@@ -107,7 +112,8 @@ class OciCredentialsCheck(Check):
 
 
 class ProjectCheck(Check):
-    """The project is ACTIVE, has sandboxes enabled and denies outbound traffic."""
+    """The project is ACTIVE, keeps conversations, has short-term memory and
+    sandboxes enabled, and denies outbound traffic."""
 
     name = "Project"
     description = "reading the Generative AI project"
@@ -129,6 +135,15 @@ class ProjectCheck(Check):
             return CheckResult.failed(
                 f"project is {state}", "Wait until the project is ACTIVE."
             )
+        problem = _conversation_problem(project)
+        if problem:
+            return CheckResult.failed(
+                problem,
+                "The agent keeps its conversation on the server: create the project "
+                "with config/project-conversation.json and "
+                "config/project-short-term-memory.json (Lab 0).",
+                blocking=False,
+            )
         config = project.sandbox_config
         if config is None or not config.is_enabled:
             return CheckResult.failed(
@@ -137,7 +152,10 @@ class ProjectCheck(Check):
             )
 
         network = _network_policy(config)
-        detail = f"{project.display_name}: ACTIVE, sandboxes enabled, network {network}"
+        detail = (
+            f"{project.display_name}: ACTIVE, {_memory_summary(project)}, "
+            f"sandboxes enabled, network {network}"
+        )
         if network != "MANAGED/DENY_ALL":
             return CheckResult.failed(
                 detail,
@@ -172,7 +190,9 @@ class PermissionsCheck(Check):
 
 
 class ModelCheck(Check):
-    """The model answers through the Responses API and calls a function tool."""
+    """The model calls a function tool, and the conversation continues on the
+    server: a second call sends only the tool output and previous_response_id,
+    as the agent does."""
 
     name = "Model"
     description = "calling the model through the Responses API (a few seconds)"
@@ -186,23 +206,47 @@ class ModelCheck(Check):
                 model=settings.model_id,
                 input="What time is it now in UTC? Use the get_utc_time tool.",
                 tools=[TIME_TOOL],
-                store=False,
+                store=True,
             )
         except Exception as error:  # pylint: disable=broad-exception-caught
             return CheckResult.failed(
-                f"{type(error).__name__}: {str(error)[:160]}",
+                _error_line(error),
                 "Check model.model_id, the API key in .env and, for OCI, that the model "
                 "is available in oci.region.",
             )
-        elapsed = time.monotonic() - started
         called = [item for item in response.output if item.type == "function_call"]
         if not called:
             return CheckResult.failed(
-                f"the model answered without calling the tool ({elapsed:.1f} s)",
+                f"the model answered without calling the tool "
+                f"({time.monotonic() - started:.1f} s)",
                 "The agent needs function calling: choose another model.",
             )
+
+        # Continue the same conversation on the server: send only the tool output.
+        try:
+            client.responses.create(
+                model=settings.model_id,
+                input=[
+                    {
+                        "type": "function_call_output",
+                        "call_id": item.call_id,
+                        "output": TIME_TOOL_OUTPUT,
+                    }
+                    for item in called
+                ],
+                tools=[TIME_TOOL],
+                store=True,
+                previous_response_id=response.id,
+            )
+        except Exception as error:  # pylint: disable=broad-exception-caught
+            return CheckResult.failed(
+                f"server-side conversation failed: {_error_line(error)}",
+                "The agent needs store=True and previous_response_id: check the "
+                "conversation settings of the project (Lab 0).",
+            )
         return CheckResult.passed(
-            f"{settings.model_id} called {called[0].name} ({elapsed:.1f} s)"
+            f"{settings.model_id} called {called[0].name}, conversation continued "
+            f"on the server ({time.monotonic() - started:.1f} s)"
         )
 
 
@@ -365,6 +409,31 @@ def _network_policy(sandbox_config) -> str:
     mode = str(networking.network_mode).upper()
     policy = getattr(networking, "network_policy", None)
     return f"{mode}/{str(policy.mode).upper()}" if policy is not None else mode
+
+
+def _conversation_problem(project) -> str | None:
+    """What is missing for server-side conversations, or None when all is set."""
+    if getattr(project, "conversation_config", None) is None:
+        return "conversations are not configured in this project"
+    memory = getattr(project, "short_term_memory_optimization_config", None)
+    if memory is None or not memory.is_enabled:
+        return "short-term memory is not enabled in this project"
+    return None
+
+
+def _memory_summary(project) -> str:
+    """Conversation retention and compaction model, for the report line."""
+    hours = project.conversation_config.conversations_retention_in_hours
+    memory = project.short_term_memory_optimization_config
+    condenser = getattr(memory, "condenser_config", None)
+    selection = getattr(condenser, "llm_selection", None)
+    model = getattr(selection, "model_id", None) or "default model"
+    return f"conversations {hours} h, short-term memory ({model})"
+
+
+def _error_line(error: BaseException) -> str:
+    """An exception as one short line."""
+    return f"{type(error).__name__}: {str(error)[:160]}"
 
 
 def _notes(error: BaseException) -> str:

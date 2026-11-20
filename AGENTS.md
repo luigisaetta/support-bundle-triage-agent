@@ -92,7 +92,8 @@ participant, who may read it or copy it to catch up. It is not for you.
 - Settings come from `Settings.load()`; the model client from
   `ModelClientFactory`; the sandbox from `SandboxManager`. Do not hard-code
   regions, OCIDs, model ids or keys, and never print secrets.
-- Call the Responses API with `store=False`.
+- Call the Responses API with `store=True`: the conversation is kept on the
+  server, and each call continues it with `previous_response_id`.
 - In tests, never call OCI or the model: use the fakes in `tests/unit/fakes.py`
   (or new fakes next to your tests).
 

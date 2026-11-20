@@ -1,0 +1,10 @@
+{
+  "isEnabled": true,
+  "condenserConfig": {
+    "modelConfigType": "CONDENSER",
+    "llmSelection": {
+      "llmSelectionType": "GEN_AI_MODEL",
+      "modelId": "openai.gpt-oss-120b"
+    }
+  }
+}

@@ -9,6 +9,8 @@ command runs inside an isolated OCI Sandbox.
 ```
 config/
   settings.toml          configuration (model, OCI, sandbox); versioned, no secrets
+  project-conversation.json       OCI project: conversation retention
+  project-short-term-memory.json  OCI project: short-term memory, compaction model
   sandbox-project-deny-all.json   OCI project: sandboxes enabled, DENY_ALL network
 triage/
   config.py              settings: config/settings.toml + secrets in .env
@@ -33,12 +35,14 @@ cp .env.example .env        # secrets only: the API key
 python -m triage.preflight  # add --quick to skip the sandbox checks
 ```
 
-Create the Generative AI project with sandboxes enabled and outbound network
-denied (Lab 0):
+Create the Generative AI project with server-side conversations, short-term
+memory, and sandboxes with outbound network denied (Lab 0):
 
 ```bash
 oci generative-ai generative-ai-project create \
   --compartment-id <compartment-ocid> \
   --display-name support-triage \
+  --conversation-config file://config/project-conversation.json \
+  --short-term-memory-optimization-config file://config/project-short-term-memory.json \
   --sandbox-config file://config/sandbox-project-deny-all.json
 ```

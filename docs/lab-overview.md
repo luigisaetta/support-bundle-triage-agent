@@ -72,7 +72,8 @@ send the task and the tool schemas, execute the requested function calls in the
 sandbox, return the results, repeat until the model answers or the step budget
 runs out. Tool errors are returned to the model, not raised.
 
-**You learn:** function calling with Responses, `store=False`, step budgets,
+**You learn:** function calling with Responses, server-side conversation (`store=True`,
+`previous_response_id`), step budgets,
 treating bundle content as untrusted data (prompt injection).
 
 **Done when:** `pytest tests/lab2` passes, and the agent investigates the
