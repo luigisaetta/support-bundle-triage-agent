@@ -159,8 +159,11 @@ If the cleanup only warns that the sandbox is still stopping, the stop was
 requested and the service is slow to finish it: delete the sandbox from the
 OCI Console once it is `STOPPED`.
 
-To leave the test sandbox running and explore it, add `--keep`: the preflight
-prints its id, and the sandbox expires on its own after 20 minutes.
+You do not need to keep this sandbox: in Lab 3 the triage command creates
+its own, and can keep it for reuse. To leave the test sandbox running and
+explore it now, add `--keep`: the preflight prints its id, and the sandbox
+expires after 20 minutes (it then becomes `STOPPED`; delete it from the OCI
+Console).
 
 ### 6. Read AGENTS.md
 
