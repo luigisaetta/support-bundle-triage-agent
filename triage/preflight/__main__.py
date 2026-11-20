@@ -1,6 +1,6 @@
 """
 Author: L. Saetta
-Date Last Modified: 2026-11-19
+Date Last Modified: 2026-11-20
 License: MIT
 Description: Command line entry point of the preflight check. Verifies, in
     about a minute, that everything the lab needs is in place: local
@@ -108,7 +108,7 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as error:  # pylint: disable=broad-exception-caught
         later_checks, import_error = [], error  # the first check explains it
     reporter = ConsoleReporter(total=1 + len(later_checks))
-    print()
+    reporter.banner(quick=args.quick)
 
     # Phase 1: the local environment, with the standard library only.
     environment = LocalEnvironmentCheck()

@@ -1,6 +1,6 @@
 """
 Author: L. Saetta
-Date Last Modified: 2026-11-19
+Date Last Modified: 2026-11-20
 License: MIT
 Description: Runs the preflight checks in order and prints a report.
 
@@ -51,6 +51,8 @@ class ConsoleReporter:
     RESET = "\033[0m"
     CLEAR_LINE = "\r\033[K"
     NAME_WIDTH = 18
+    BANNER_WIDTH = 64
+    BANNER_COLOR = "\033[36m"
 
     def __init__(self, total: int, stream: TextIO | None = None) -> None:
         self._total = total
@@ -60,6 +62,29 @@ class ConsoleReporter:
         self._step = 0
         self._running: Check | None = None
         self._last_plain_progress = 0.0
+
+    def banner(self, quick: bool = False) -> None:
+        """Print the workshop title and the selected preflight mode.
+
+        Args:
+            quick: Show that sandbox checks are skipped in quick mode.
+        """
+        mode = "QUICK MODE" if quick else "FULL MODE"
+        scope = "No sandbox created" if quick else "Includes sandbox validation"
+        content = [
+            "SUPPORT BUNDLE TRIAGE AGENT",
+            "Oracle LiveLabs · Environment preflight",
+            "",
+            f"{mode} · {self._total} checks · {scope}",
+        ]
+        border = "─" * (self.BANNER_WIDTH - 2)
+        lines = [f"╭{border}╮"]
+        lines.extend(f"│  {text:<{self.BANNER_WIDTH - 4}}│" for text in content)
+        lines.append(f"╰{border}╯")
+        banner = "\n".join(lines)
+        if self._color:
+            banner = f"{self.BANNER_COLOR}{banner}{self.RESET}"
+        self._write(f"\n{banner}\n\n")
 
     # ------------------------------------------------------------ check events
 
