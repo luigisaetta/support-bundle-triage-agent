@@ -73,6 +73,15 @@ The answer is a JSON document that follows `REPORT_SCHEMA` (the `text` of the
   sets `verified` to `True` when the line exists, `False` otherwise (missing
   file, line past the end, location that cannot be parsed). It never raises.
   This shows which evidence really exists in the bundle.
+  **Parse locations tolerantly**: the model writes them in many ways, and a
+  correct citation must not be marked ✘ because of its format. Strip
+  surrounding backticks, quotes and spaces; accept `-`, `–` and `—` for
+  ranges; accept spaces after commas; accept lists that mix lines and ranges.
+  All of these must be verified when line 2 exists:
+  `db/alert_orcl.log:2`, `` `db/alert_orcl.log:2` ``,
+  `db/alert_orcl.log:2-4`, `db/alert_orcl.log:2–4`,
+  `db/alert_orcl.log:2, 9`, `db/alert_orcl.log:2,29-34`.
+  The first number after the last `:` is the line to check.
 - `render_markdown(report, metadata: dict[str, str]) -> str`: a readable
   report: title, a metadata table (bundle, date, model, sandbox, steps, tool
   calls, tokens), Summary, Root cause with confidence, an Evidence table
@@ -105,6 +114,17 @@ python -m triage.cli BUNDLE [--sandbox-id ID] [--keep] [--snapshot]
      close a sandbox created by this run, unless `--keep`: in that case print
      its id and the command to reuse it (`--sandbox-id`). Never close a
      sandbox given with `--sandbox-id`.
+- **Progress while waiting**: a sandbox can take many minutes to start or
+  stop, and the state is polled every few seconds. Do not print a new line
+  for each state message. When `stream` is a terminal, rewrite the same line
+  in place (`\r` and clear to end of line) and end it with a newline when the
+  step is over; otherwise print a state line at most every 30 seconds, and
+  whenever the state changes.
+- **A slow cleanup is a warning, not a failure**: the service can take more
+  than five minutes to stop a sandbox, and `close()` then raises
+  `SandboxError` ("still STOPPING..."). The report is already written: print
+  a warning with the sandbox id and "delete it from the OCI Console once it is
+  STOPPED", and exit 0.
 - Defaults: `--output-dir out`, `--max-steps` 15, a default `--task` that
   asks to find the root cause of the issue described in the bundle.
 - Validate the settings first (`settings.validate()`): print the problems and
@@ -131,13 +151,17 @@ Cover at least:
   the strict `json_schema` format; valid JSON becomes a `TriageReport`;
   invalid JSON raises `ReportError`.
 - `REPORT_SCHEMA` is strict at every level.
-- `EvidenceChecker`: an existing line is verified; a missing file, a line
-  past the end and a malformed location are not, and nothing raises.
+- `EvidenceChecker`: every location format listed above is verified when the
+  line exists; a missing file, a line past the end and a malformed location
+  are not, and nothing raises.
 - `render_markdown`: all sections and the ✔ / ✘ marks are present.
 - `TriageApp.run` end to end with the fakes: the report files are written;
   a created sandbox is closed; with `keep=True` it is not, and its id is
   printed; an attached sandbox is never closed; a bad bundle prints one
-  error line and still runs the cleanup.
+  error line and still runs the cleanup; a `close()` that raises
+  `SandboxError` prints a warning and the run still succeeds.
+- Progress: many state messages on a non-terminal stream produce only a few
+  lines (use a stream whose `isatty()` returns False, and patch the clock).
 
 ## Done
 
