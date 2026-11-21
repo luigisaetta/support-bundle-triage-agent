@@ -224,3 +224,10 @@ when you finish using it. Omit `--keep` on the first run if you want the CLI
 to close the sandbox it creates.
 
 For a map of the project files, see [Repository layout](layout.md).
+
+## How AI is used
+
+The model does much more than write the report: it plans and runs the whole
+investigation, choosing tools, writing analysis code and correlating evidence
+across files. Read [How AI is used in this project](docs/how-ai-is-used.md)
+before choosing a model.

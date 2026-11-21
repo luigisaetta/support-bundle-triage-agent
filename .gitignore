@@ -7,3 +7,10 @@ out/
 bundles/*.zip
 !bundles/.gitkeep
 .vscode/
+
+# Lab code that participants build with Codex: never commit it.
+# The reference versions are in solutions/labN/.
+triage/tools.py
+triage/agent.py
+triage/report.py
+triage/cli.py
