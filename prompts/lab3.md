@@ -133,10 +133,16 @@ python -m triage.cli BUNDLE [--sandbox-id ID] [--keep] [--snapshot]
   (`BundleError`, `SandboxError`, `ReportError`, `openai.APIError`) print one
   clear line and exit 1, without a traceback.
 
-## Tests: `tests/lab3/`
+## Tests: `tests/lab3/` (already written: read them first)
 
-Create `tests/lab3/__init__.py`, `test_report.py` and `test_cli.py`. Never
-call OCI or the model:
+The acceptance tests of this lab are already in `tests/lab3/`. They are
+the exact contract: besides the interface above, they import or patch a
+few more names (constants, helper functions, names imported in the
+module). Read them **before** writing code, then make them pass **without
+changing them**. If you want more tests, add them in a new file,
+`tests/lab3/test_extra.py`.
+
+The tests never call OCI or the model:
 
 - Model: a fake client whose `responses.create(**kwargs)` returns scripted
   responses and records its arguments (output items built with the real
@@ -145,7 +151,7 @@ call OCI or the model:
   `FakeSandboxClient` (`tests/unit/fakes.py`); bundles built with
   `zipfile` in `tmp_path` or with `triage.make_bundle.SampleBundle`.
 
-Cover at least:
+They cover:
 
 - `ReportWriter`: the request has `previous_response_id`, `store=True` and
   the strict `json_schema` format; valid JSON becomes a `TriageReport`;

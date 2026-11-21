@@ -130,12 +130,19 @@ ERROR: logs/missing.log does not exist. Use list_files to see the bundle.
   (no GNU-only flags such as `find -printf` or `grep -P`), or a short
   `python3` script.
 
-## Tests: `tests/lab1/test_tools.py`
+## Tests: `tests/lab1/test_tools.py` (already written: read them first)
 
-Create `tests/lab1/__init__.py` and the tests. Use `FakeSandboxClient` from
+The acceptance tests of this lab are already in `tests/lab1/`. They are
+the exact contract: besides the interface above, they import or patch a
+few more names (constants, helper functions, names imported in the
+module). Read them **before** writing code, then make them pass **without
+changing them**. If you want more tests, add them in a new file,
+`tests/lab1/test_extra.py`.
+
+The tests use `FakeSandboxClient` from
 `tests/unit/fakes.py` with a real `SandboxSession`, and write a small sample
 bundle (a log file, a config file, a subdirectory) into `/workspace/bundle`
-with `session.write_file` in a fixture. Cover at least:
+with `session.write_file` in a fixture. They cover:
 
 - `schemas()` returns four valid strict function schemas.
 - `list_files`, `read_file`, `grep` return the expected lines in the

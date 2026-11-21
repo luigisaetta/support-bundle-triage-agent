@@ -103,16 +103,23 @@ Write them for the model, short and concrete. They must say:
 - The answer: root cause, evidence (`path:line`), timeline, confidence (high,
   medium or low) and next steps, concise.
 
-## Tests: `tests/lab2/test_agent.py`
+## Tests: `tests/lab2/test_agent.py` (already written: read them first)
 
-Create `tests/lab2/__init__.py` and the tests. Never call the real model: use
+The acceptance tests of this lab are already in `tests/lab2/`. They are
+the exact contract: besides the interface above, they import or patch a
+few more names (constants, helper functions, names imported in the
+module). Read them **before** writing code, then make them pass **without
+changing them**. If you want more tests, add them in a new file,
+`tests/lab2/test_extra.py`.
+
+The tests never call the real model: they use
 a fake client whose `responses.create(**kwargs)` returns scripted responses
 and records the keyword arguments of every call. Build the output items with
 the real openai types (`openai.types.responses.ResponseFunctionToolCall`,
 `ResponseOutputMessage`, `ResponseOutputText`); the response itself can be a
 simple object with `id`, `output` and `usage`. Use a real `ToolRegistry` on a `SandboxSession` with
 `FakeSandboxClient` (`tests/unit/fakes.py`) and a small bundle written in a
-fixture. Cover at least:
+fixture. They cover:
 
 - A direct answer: no tool call, `stopped_reason == "answered"`, one step.
 - One tool call, then the answer: the second request has
