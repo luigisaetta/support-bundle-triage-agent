@@ -106,9 +106,10 @@ python -m triage.cli bundles/sample-ora00020.zip --keep
 ```
 
 The sandbox start can take several minutes: the CLI shows its state while
-you wait. At the end it prints the root cause, the confidence, how many
-cited lines were verified, and — because of `--keep` — the id of the
-sandbox and the command to reuse it.
+you wait. It opens with a banner and shows the five steps as they run;
+because of `--keep`, the cleanup step prints the id of the sandbox and the
+command to reuse it. It ends with a result panel: the summary, the root
+cause, the confidence and how many cited lines were verified.
 
 Open the report:
 

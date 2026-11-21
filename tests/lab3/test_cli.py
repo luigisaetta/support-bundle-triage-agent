@@ -1,6 +1,6 @@
 """
 Author: L. Saetta
-Date Last Modified: 2026-11-20
+Date Last Modified: 2026-11-21
 License: MIT
 Description: Test CLI output, progress throttling and sandbox lifecycle with local fakes.
 """
@@ -9,6 +9,7 @@ from dataclasses import dataclass, replace
 import io
 import json
 from pathlib import Path
+import re
 from types import SimpleNamespace
 from unittest.mock import patch
 import zipfile
@@ -26,11 +27,38 @@ from tests.lab3.fakes import (
     settings,
 )
 from triage import cli
-from triage.cli import DEFAULT_TASK, TriageApp
+from triage.cli import BOX_WIDTH, DEFAULT_TASK, TriageApp
 from triage.config import Settings
 from triage.ingest import BundleError
 from triage.report import ReportError
 from triage.sandbox import SandboxError, SandboxManager, SandboxSession
+
+COLOR_CODE = re.compile(r"\033\[[0-9;]*m")
+BOX_CHARS = ("╭", "│", "╰")
+
+
+def plain(text: str) -> str:
+    """Remove color codes, keeping the cursor controls of the progress line.
+
+    Args:
+        text: Captured console output.
+
+    Returns:
+        The same text without SGR color sequences.
+    """
+    return COLOR_CODE.sub("", text)
+
+
+def box_lines(text: str) -> list[str]:
+    """Collect the lines of the banner and of the result panel.
+
+    Args:
+        text: Captured console output, without color codes.
+
+    Returns:
+        Every line drawn as part of a box.
+    """
+    return [line for line in text.splitlines() if line.startswith(BOX_CHARS)]
 
 
 class TerminalStream(io.StringIO):
@@ -144,6 +172,61 @@ def test_end_to_end_reports_and_cleanup(harness: Harness) -> None:
         assert value in text
 
 
+def test_banner_and_result_panel(harness: Harness) -> None:
+    """Open with the banner and end with the summary and root cause in a panel."""
+    harness.app().run(harness.bundle)
+    text = harness.stream.getvalue()
+    assert "\033[" not in text  # no escape codes on a non-terminal stream
+    assert text.index("SUPPORT BUNDLE TRIAGE AGENT") < text.index("1. Sandbox")
+    assert "sample.zip" in text and "test-model" in text
+    panel = text[text.index("Triage result") :]
+    assert text.index("5. Cleanup") < text.index("Triage result")
+    for value in (
+        "Summary:",
+        report_data()["summary"],
+        "Root cause:",
+        report_data()["root_cause"],
+        "Confidence: high",
+        "Evidence verified: 1/1",
+    ):
+        assert value in panel
+    assert box_lines(text) and all(len(line) == BOX_WIDTH for line in box_lines(text))
+
+
+def test_long_texts_wrap_inside_the_boxes(harness: Harness) -> None:
+    """Wrap a long summary without losing words; cut a long model id in the banner."""
+    summary = " ".join(f"word{index}" for index in range(60))
+    long_report = {**report_data(), "summary": summary}
+    script = investigation_script()
+    script[-1] = response("report-1", message(json.dumps(long_report)))
+    harness.model = ModelFake(script)
+    harness.settings = replace(harness.settings, model_id="m" * 200)
+    harness.app().run(harness.bundle)
+    text = harness.stream.getvalue()
+    lines = box_lines(text)
+    assert all(len(line) == BOX_WIDTH for line in lines)
+    start = next(i for i, line in enumerate(lines) if "Triage result" in line)
+    panel = " ".join(lines[start:])
+    assert all(f"word{index}" in panel.split() for index in range(60))
+    assert "…" in text
+
+
+@pytest.mark.parametrize("no_color", [False, True])
+def test_terminal_colors_respect_no_color(
+    harness: Harness, monkeypatch: pytest.MonkeyPatch, no_color: bool
+) -> None:
+    """Color a terminal stream, and keep it plain when NO_COLOR is set."""
+    if no_color:
+        monkeypatch.setenv("NO_COLOR", "1")
+    else:
+        monkeypatch.delenv("NO_COLOR", raising=False)
+    harness.stream = TerminalStream()
+    harness.app().run(harness.bundle)
+    text = harness.stream.getvalue()
+    assert bool(COLOR_CODE.search(text)) is not no_color
+    assert all(len(line) == BOX_WIDTH for line in box_lines(plain(text)))
+
+
 def test_keep_prints_reuse_command(harness: Harness) -> None:
     """Preserve a newly created sandbox and show its id and reuse command."""
     assert harness.app().run(harness.bundle, keep=True).is_file()
@@ -238,9 +321,7 @@ def test_model_failure_and_ctrl_c_cleanup(harness: Harness, failure: str) -> Non
         harness.app().run(harness.bundle)
     assert harness.client.calls[-2:] == ["stop", "delete"]
     errors = [
-        line
-        for line in harness.stream.getvalue().splitlines()
-        if line.startswith("ERROR:")
+        line for line in harness.stream.getvalue().splitlines() if "ERROR:" in line
     ]
     assert len(errors) == 1 and "Traceback" not in errors[0]
 
@@ -295,8 +376,8 @@ def test_many_nonterminal_states_are_throttled(harness: Harness) -> None:
     ):
         harness.app().run(harness.bundle)
     lines = harness.stream.getvalue().splitlines()
-    assert len([line for line in lines if line.startswith("CREATING,")]) == 4
-    assert len([line for line in lines if line.startswith("RUNNING,")]) == 1
+    assert len([line for line in lines if line.strip().startswith("CREATING,")]) == 4
+    assert len([line for line in lines if line.strip().startswith("RUNNING,")]) == 1
     assert (
         "\r" not in harness.stream.getvalue()
         and "\033[K" not in harness.stream.getvalue()
@@ -314,7 +395,7 @@ def test_state_changes_print_immediately(harness: Harness) -> None:
         progress("STOPPING, 62 s")
         progress("STOPPING, 63 s")
         progress.close()
-    assert harness.stream.getvalue().splitlines() == [
+    assert [line.strip() for line in harness.stream.getvalue().splitlines()] == [
         "CREATING, 0 s",
         "CREATING, 30 s",
         "CREATING, 60 s",
@@ -329,11 +410,11 @@ def test_terminal_progress_rewrites_and_finishes_each_step(harness: Harness) -> 
     harness.client.queue_states(["CREATING"] * 20 + ["RUNNING"])
     with patch("triage.sandbox.time.sleep"):
         harness.app().run(harness.bundle)
-    text = harness.stream.getvalue()
-    assert text.count("\rCREATING,") == 20
-    assert "\nCREATING," not in text
-    assert "\033[K\n2. Bundle" in text
-    assert "\rdeleting\033[K\n" in text
+    text = plain(harness.stream.getvalue())
+    assert len(re.findall(r"\r[^\n\r]*CREATING,", text)) == 20
+    assert not re.search(r"\n[^\n\r]*CREATING,", text)
+    assert re.search(r"\r[^\n\r]*(CREATING|RUNNING),[^\n\r]*\033\[K\n", text)
+    assert re.search(r"\r[^\n\r]*deleting\033\[K\n", text)
 
 
 def test_terminal_progress_finishes_after_creation_error(harness: Harness) -> None:
@@ -348,7 +429,8 @@ def test_terminal_progress_finishes_after_creation_error(harness: Harness) -> No
     with patch.object(harness.manager, "create", side_effect=fail_create):
         with pytest.raises(SandboxError, match="cannot start"):
             harness.app().run(harness.bundle)
-    assert "\033[K\nERROR: cannot start\n" in harness.stream.getvalue()
+    text = plain(harness.stream.getvalue())
+    assert re.search(r"\033\[K\n[^\n]*ERROR: cannot start\n", text)
 
 
 def _main(harness: Harness, arguments: list[str]) -> int:

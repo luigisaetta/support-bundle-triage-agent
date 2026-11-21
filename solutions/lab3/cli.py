@@ -1,6 +1,6 @@
 """
 Author: L. Saetta
-Date Last Modified: 2026-11-20
+Date Last Modified: 2026-11-21
 License: MIT
 Description: Run sandbox investigations, save reports and manage resource cleanup.
 """
@@ -10,9 +10,11 @@ from contextlib import closing
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import shlex
 import sys
+import textwrap
 from time import monotonic
 from typing import TextIO
 
@@ -37,6 +39,8 @@ from triage.tools import ToolRegistry
 DEFAULT_TASK = "Find the root cause of the issue described in the support bundle."
 DEFAULT_OUTPUT_DIR = Path("out")
 PROGRESS_INTERVAL_SECONDS = 30.0
+BOX_WIDTH = 64
+INDENT = "  "
 _EXPECTED_ERRORS = (
     BundleError,
     SandboxError,
@@ -75,7 +79,7 @@ class _Progress:
             message: Sandbox callback text, such as CREATING, 6 s.
         """
         if self._terminal:
-            print(f"\r{message}\033[K", end="", file=self._stream, flush=True)
+            print(f"\r{INDENT}{message}\033[K", end="", file=self._stream, flush=True)
             self._active = True
             return
         state = message.partition(",")[0].strip()
@@ -84,7 +88,7 @@ class _Progress:
             state != self._last_state
             or now - self._last_output >= PROGRESS_INTERVAL_SECONDS
         ):
-            print(message, file=self._stream, flush=True)
+            print(f"{INDENT}{message}", file=self._stream, flush=True)
             self._last_state = state
             self._last_output = now
 
@@ -93,6 +97,142 @@ class _Progress:
         if self._active:
             print(file=self._stream, flush=True)
             self._active = False
+
+
+class ConsoleView:
+    """Draw the banner, the steps and the result panel of a triage run.
+
+    Colors are used only on a terminal, and never when NO_COLOR is set, so
+    redirected output stays plain text.
+
+    Args:
+        stream: Destination console stream.
+    """
+
+    CYAN = "\033[36m"
+    GREEN = "\033[32m"
+    YELLOW = "\033[33m"
+    RED = "\033[31m"
+    DIM = "\033[2m"
+    RESET = "\033[0m"
+    CONFIDENCE_COLORS = {"high": GREEN, "medium": YELLOW, "low": RED}
+
+    def __init__(self, stream: TextIO) -> None:
+        self._stream = stream
+        self._color = stream.isatty() and "NO_COLOR" not in os.environ
+
+    def banner(self, bundle: Path, model_id: str, max_steps: int) -> None:
+        """Print the title box that opens every run.
+
+        Args:
+            bundle: Bundle being investigated.
+            model_id: Model that runs the investigation.
+            max_steps: Step budget of the agent.
+        """
+        rows = [
+            self._row("SUPPORT BUNDLE TRIAGE AGENT"),
+            self._row("Oracle LiveLabs · Triage run"),
+            self._row(""),
+            self._row(f"Bundle  {bundle.name}"),
+            self._row(f"Model   {model_id} · max {max_steps} steps"),
+        ]
+        self._write("")
+        self._box("", rows)
+        self._write("")
+
+    def step(self, number: int, title: str) -> None:
+        """Print the header of a numbered step.
+
+        Args:
+            number: Step number, from 1 to 5.
+            title: Short step name.
+        """
+        self._write(self._paint(f"▸ {number}. {title}", self.CYAN))
+
+    def info(self, text: str) -> None:
+        """Print a plain line inside the current step."""
+        self._write(f"{INDENT}{text}")
+
+    def done(self, text: str) -> None:
+        """Print a completed action inside the current step."""
+        self._write(f"{INDENT}{self._paint('✔', self.GREEN)} {text}")
+
+    def event(self, text: str) -> None:
+        """Print an agent event, such as a tool call."""
+        self._write(self._paint(f"{INDENT}· {text}", self.DIM))
+
+    def warning(self, text: str) -> None:
+        """Print a warning on one line."""
+        self._write(self._paint(f"⚠ WARNING: {text}", self.YELLOW))
+
+    def error(self, text: str) -> None:
+        """Print an error on one line."""
+        self._write(self._paint(f"✘ ERROR: {text}", self.RED))
+
+    def progress(self) -> "_Progress":
+        """Return a progress callback for a long sandbox operation."""
+        return _Progress(self._stream)
+
+    def result(self, report: TriageReport) -> None:
+        """Print the panel with summary, root cause, confidence and evidence.
+
+        Args:
+            report: Checked report of the run.
+        """
+        width = BOX_WIDTH - 6 - len(INDENT)
+        verified = sum(item.verified is True for item in report.evidence)
+        confidence = self._paint(
+            report.confidence, self.CONFIDENCE_COLORS.get(report.confidence, "")
+        )
+        tail = f" · Evidence verified: {verified}/{len(report.evidence)}"
+        rows = [self._row("Summary:")]
+        rows += [
+            self._row(INDENT + line) for line in textwrap.wrap(report.summary, width)
+        ]
+        rows += [self._row(""), self._row("Root cause:")]
+        rows += [
+            self._row(INDENT + line) for line in textwrap.wrap(report.root_cause, width)
+        ]
+        rows += [
+            self._row(""),
+            self._row(
+                f"Confidence: {report.confidence}{tail}",
+                f"Confidence: {confidence}{tail}",
+            ),
+        ]
+        self._write("")
+        self._box("Triage result", rows)
+
+    def _row(self, text: str, painted: str | None = None) -> tuple[str, str]:
+        """Fit a row to the box, cutting it with an ellipsis when too long.
+
+        Returns:
+            The row as plain text and as text to print (maybe colored).
+        """
+        inner = BOX_WIDTH - 6  # two spaces of margin on each side
+        if len(text) > inner:
+            text, painted = text[: inner - 1] + "…", None
+        padding = " " * (inner - len(text))
+        return text, (painted or text) + padding
+
+    def _box(self, title: str, rows: list[tuple[str, str]]) -> None:
+        """Print rows inside a rounded box of BOX_WIDTH characters."""
+        label = f"─ {title} " if title else ""
+        top = f"╭{label}{'─' * (BOX_WIDTH - 2 - len(label))}╮"
+        bottom = f"╰{'─' * (BOX_WIDTH - 2)}╯"
+        side = self._paint("│", self.CYAN)
+        self._write(self._paint(top, self.CYAN))
+        for _, printed in rows:
+            self._write(f"{side}  {printed}  {side}")
+        self._write(self._paint(bottom, self.CYAN))
+
+    def _paint(self, text: str, color: str) -> str:
+        """Color text when colors are enabled."""
+        return f"{color}{text}{self.RESET}" if self._color and color else text
+
+    def _write(self, text: str) -> None:
+        """Flush each line, so long operations remain visible."""
+        print(text, file=self._stream, flush=True)
 
 
 @dataclass(frozen=True)
@@ -130,7 +270,7 @@ class TriageApp:
         self._manager = manager
         self._model_client = model_client
         self._output_dir = Path(output_dir)
-        self._stream = stream
+        self._view = ConsoleView(stream)
 
     def run(  # pylint: disable=too-many-arguments
         self,
@@ -164,6 +304,7 @@ class TriageApp:
             KeyboardInterrupt: The run was interrupted, after cleanup.
         """
         try:
+            self._view.banner(Path(bundle), self._settings.model_id, max_steps)
             problems = self._settings.validate()
             if problems:
                 raise ValueError("Invalid settings: " + "; ".join(problems))
@@ -177,26 +318,28 @@ class TriageApp:
             )
             return self._run(options)
         except _EXPECTED_ERRORS as error:
-            self._print(f"ERROR: {_message(error)}")
+            self._view.error(_message(error))
             raise
         except KeyboardInterrupt:
-            self._print("ERROR: Interrupted by the user.")
+            self._view.error("Interrupted by the user.")
             raise
 
     def _run(self, options: _RunOptions) -> Path:
         """Acquire a session and preserve any original error during cleanup."""
-        self._print("1. Sandbox")
+        view = self._view
+        view.step(1, "Sandbox")
         if options.sandbox_id is not None:
-            self._print(f"Attaching to sandbox {options.sandbox_id}.")
+            view.info(f"Attaching to sandbox {options.sandbox_id}.")
             session = self._manager.attach(options.sandbox_id)
         else:
-            self._print("Creating sandbox; a cold start can take minutes.")
-            with closing(_Progress(self._stream)) as progress:
+            view.info("Creating sandbox: a cold start can take minutes.")
+            with closing(view.progress()) as progress:
                 session = self._manager.create(
                     display_name=f"triage-{options.bundle.stem}", on_progress=progress
                 )
+        view.done(f"Sandbox {session.sandbox_id}")
         try:
-            return self._investigate(session, options)
+            path, report = self._investigate(session, options)
         finally:
             original_error = sys.exception()
             try:
@@ -207,29 +350,40 @@ class TriageApp:
                 original_error.add_note(
                     f"Cleanup also failed: {_message(cleanup_error)}"
                 )
-                self._print(f"WARNING: Cleanup also failed: {_message(cleanup_error)}")
+                view.warning(f"Cleanup also failed: {_message(cleanup_error)}")
+        view.result(report)
+        return path
 
-    def _investigate(self, session: SandboxSession, options: _RunOptions) -> Path:
+    def _investigate(
+        self, session: SandboxSession, options: _RunOptions
+    ) -> tuple[Path, TriageReport]:
         """Upload, investigate, request structured findings and check citations."""
-        self._print("2. Bundle: uploading and extracting in the sandbox.")
+        view = self._view
+        view.step(2, "Bundle")
+        view.info("Uploading and extracting the bundle in the sandbox.")
         summary = BundleUploader(session).upload(options.bundle)
-        self._print(summary.describe())
-        self._print("3. Investigation: waiting for the model and its tools.")
+        view.done(summary.describe())
+        view.step(3, "Investigation")
+        view.info("Waiting for the model and its tools.")
         tools = ToolRegistry(session)
         agent = TriageAgent(
             self._model_client,
             self._settings.model_id,
             tools,
             max_steps=options.max_steps,
-            on_event=self._print,
+            on_event=view.event,
         )
         result = agent.run(options.task)
-        self._print(
-            "4. Report: requesting structured findings and checking cited lines."
+        view.done(
+            f"{result.stopped_reason}: {result.steps} steps, "
+            f"{len(result.tool_calls)} tool calls"
         )
+        view.step(4, "Report")
+        view.info("Requesting the structured report and checking the cited lines.")
         report = ReportWriter(self._model_client, self._settings.model_id).write(result)
         report = EvidenceChecker(tools).check(report)
-        return self._save(report, result, session.sandbox_id, options.bundle)
+        path = self._save(report, result, session.sandbox_id, options.bundle)
+        return path, report
 
     def _save(
         self, report: TriageReport, result: AgentResult, sandbox_id: str, bundle: Path
@@ -255,29 +409,28 @@ class TriageApp:
             json.dumps(report.to_dict(), indent=2, ensure_ascii=False) + "\n",
             encoding="utf-8",
         )
-        self._print(f"Markdown: {markdown_path}")
-        self._print(f"JSON: {json_path}")
-        self._print(f"Root cause: {report.root_cause}")
-        self._print(f"Confidence: {report.confidence}")
         verified = sum(item.verified is True for item in report.evidence)
-        self._print(
+        self._view.done(
             f"Evidence verified: {verified}/{len(report.evidence)} (first cited lines)"
         )
+        self._view.info(f"Markdown  {markdown_path}")
+        self._view.info(f"JSON      {json_path}")
         return markdown_path
 
     def _cleanup(self, session: SandboxSession, options: _RunOptions) -> None:
         """Snapshot if requested, then respect session ownership and keep policy."""
-        self._print("5. Cleanup")
+        view = self._view
+        view.step(5, "Cleanup")
         try:
             if options.snapshot:
-                self._print("Taking snapshot; waiting for it to become active.")
-                self._print(f"Snapshot: {session.snapshot()}")
+                view.info("Taking a snapshot: waiting for it to become active.")
+                view.done(f"Snapshot: {session.snapshot()}")
         finally:
             if options.sandbox_id is not None:
-                self._print(f"Attached sandbox preserved: {session.sandbox_id}")
+                view.done(f"Attached sandbox preserved: {session.sandbox_id}")
             elif options.keep:
-                self._print(f"Sandbox kept: {session.sandbox_id}")
-                self._print(
+                view.done(f"Sandbox kept: {session.sandbox_id}")
+                view.info(
                     f"Reuse: python -m triage.cli {shlex.quote(str(options.bundle))} "
                     f"--sandbox-id {shlex.quote(session.sandbox_id)}"
                 )
@@ -286,19 +439,17 @@ class TriageApp:
 
     def _close_owned(self, session: SandboxSession) -> None:
         """Treat an unfinished sandbox close as a warning, preserving the report."""
-        self._print(f"Closing sandbox {session.sandbox_id}.")
+        self._view.info(f"Closing sandbox {session.sandbox_id}.")
         try:
-            with closing(_Progress(self._stream)) as progress:
+            with closing(self._view.progress()) as progress:
                 session.close(on_progress=progress)
         except SandboxError as error:
-            self._print(
-                f"WARNING: Cleanup of sandbox {session.sandbox_id} is unfinished: "
+            self._view.warning(
+                f"Cleanup of sandbox {session.sandbox_id} is unfinished: "
                 f"{_message(error)}; delete it from the OCI Console once it is STOPPED."
             )
-
-    def _print(self, text: str) -> None:
-        """Flush console messages immediately so long operations remain visible."""
-        print(text, file=self._stream, flush=True)
+        else:
+            self._view.done("Sandbox closed")
 
 
 def _positive_int(value: str) -> int:
@@ -332,20 +483,21 @@ def main() -> int:
         after Ctrl+C. Argument parsing uses argparse's standard exit handling.
     """
     arguments = _parser().parse_args()
+    view = ConsoleView(sys.stdout)
     try:
         settings = Settings.load()
         problems = settings.validate()
         if problems:
             for problem in problems:
-                print(f"ERROR: {_message(ValueError(problem))}", file=sys.stdout)
+                view.error(_message(ValueError(problem)))
             return 1
         manager = SandboxManager.from_settings(settings, OciClients(settings))
         model_client = ModelClientFactory(settings).create()
     except _EXPECTED_ERRORS as error:
-        print(f"ERROR: {_message(error)}", file=sys.stdout)
+        view.error(_message(error))
         return 1
     except KeyboardInterrupt:
-        print("ERROR: Interrupted by the user.", file=sys.stdout)
+        view.error("Interrupted by the user.")
         return 130
     try:
         TriageApp(
