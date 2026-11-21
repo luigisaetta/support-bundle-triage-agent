@@ -24,7 +24,9 @@ will learn in each lab.
 
 Have these ready:
 
-- Git, Conda and Codex on your machine. The commands below create a Python 3.12 environment.
+- Git, Codex, and either Conda or an installed Python interpreter for `venv`.
+  The commands below use Conda to create a Python 3.12 environment; the
+  [venv setup guide](docs/setup-venv.md) provides the alternative walkthrough.
 - Access to an OCI tenancy and a compartment where you can create Generative AI
   projects and sandboxes. Ask your tenancy administrator for the required permissions.
 - The OCI CLI installed and OCI credentials configured in `~/.oci/config`.
@@ -38,6 +40,10 @@ See [Lab 0](labs/lab0.md) for the project settings, concepts and troubleshooting
 Run the commands below **one at a time**. Complete each step before moving on.
 If you already have this repository on your machine, start by opening its root
 directory and skip the clone command.
+
+**Prefer Python venv?** Follow the [step-by-step venv setup guide](docs/setup-venv.md)
+instead of this Conda walkthrough. It covers the environment, dependencies,
+OCI configuration and preflight checks, then brings you back to the labs.
 
 ### 1. Get the workshop files
 
