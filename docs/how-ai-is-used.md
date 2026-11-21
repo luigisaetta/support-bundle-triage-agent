@@ -85,11 +85,24 @@ schema. The model turns what it found into root cause, confidence (high,
 medium, low), evidence as `path:line`, timeline and next steps — with a
 confidence that should match the strength of the evidence.
 
-### Behind the scenes: compaction
+### Behind the scenes: the conversation is managed by the platform
 
-The project has short-term memory enabled. When a conversation grows, OCI
-condenses it with a second model, `openai.gpt-oss-120b`. Our code never calls
-it: it is part of the project configuration.
+With `store=True`, the agent's short-term memory — the conversation with all
+its tool calls and results — is kept and managed by **the platform that
+serves the Responses API**, not by our code. Which platform depends on
+`model.provider` in `config/settings.toml`:
+
+- **OCI Generative AI** (`provider = "oci"`): the conversation belongs to the
+  Generative AI project. The project settings decide how long conversations
+  are kept and enable short-term memory; when a conversation grows, OCI
+  condenses it with the compaction model chosen in the project (in this lab,
+  `openai.gpt-oss-120b`).
+- **OpenAI** (`provider = "openai"`): the conversation is stored by OpenAI,
+  and how it is kept and handled is decided by OpenAI's platform and account
+  settings. The OCI project settings do not apply.
+
+In both cases the client code is the same: it only passes
+`previous_response_id`, and never calls a compaction model itself.
 
 ## The model calls, at a glance
 
