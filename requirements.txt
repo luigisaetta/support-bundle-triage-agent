@@ -1,3 +1,4 @@
 oci==2.192.0
+oci-cli
 openai==3.55.1
 python-dotenv==1.2.4
