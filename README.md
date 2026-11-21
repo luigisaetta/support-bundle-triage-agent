@@ -1,99 +1,220 @@
 # Support Bundle Triage Agent
 
-An AI agent that diagnoses customer support bundles. The model is reached
-through the OpenAI Responses API (on OCI Generative AI or on OpenAI), the
-conversation is kept on the server, and every command the agent runs executes
-inside an isolated OCI Sandbox with no outbound network.
+Build an AI support engineer with Codex in this hands-on LiveLabs workshop.
+You will give an agent tools to inspect customer logs, connect them to a model,
+and produce a triage report with a root cause, cited evidence, a timeline,
+confidence and next steps.
 
-This repository is a LiveLab: in four labs you build the agent with Codex.
-Start from [docs/lab-overview.md](docs/lab-overview.md).
+The model uses the OpenAI Responses API through OCI Generative AI or OpenAI.
+Commands that inspect the bundle run inside an isolated OCI Sandbox with no
+outbound network.
 
-## Labs
+Follow Labs 0–3 in order. Allow about **two hours, plus the waits for sandboxes
+to start and stop**. The [lab overview](docs/lab-overview.md) explains what you
+will learn in each lab.
 
-| Lab | Guide | You build |
-|-----|-------|-----------|
-| 0 | [Setup and preflight](labs/lab0.md) | nothing (provided) |
+| Lab | Guide | You work on |
+|-----|-------|-------------|
+| 0 | [Setup and preflight](labs/lab0.md) | Environment, OCI project and configuration |
 | 1 | [Sandbox tools](labs/lab1.md) | `triage/tools.py` |
 | 2 | [Agent loop](labs/lab2.md) | `triage/agent.py` |
 | 3 | [Report and end-to-end run](labs/lab3.md) | `triage/report.py`, `triage/cli.py` |
 
-## Layout
+## Before you start
 
-```
-AGENTS.md                  rules for Codex in this repository (read-only)
-config/
-  settings.toml            configuration (model, OCI, sandbox); versioned, no secrets
-  project-conversation.json        OCI project: conversation retention
-  project-short-term-memory.json   OCI project: short-term memory, compaction model
-  sandbox-project-deny-all.json    OCI project: sandboxes enabled, DENY_ALL network
-.env.example               secrets only (API keys); copy to .env, never commit .env
-triage/
-  config.py                settings: config/settings.toml + secrets in .env   (provided)
-  oci_clients.py           OCI SDK clients (sandbox and Generative AI)         (provided)
-  llm.py                   OpenAI client for the configured provider           (provided)
-  sandbox.py               SandboxManager, SandboxSession: lifecycle, commands,
-                           files, snapshots                                    (provided)
-  ingest.py                safe upload of a bundle zip into the sandbox        (provided)
-  make_bundle.py           writes the sample bundle (python -m triage.make_bundle)
-  preflight/               environment check (python -m triage.preflight)     (provided)
-  tools.py                 function tools over the sandbox                     (Lab 1)
-  agent.py                 Responses API loop with function calling            (Lab 2)
-  report.py                structured triage report, evidence check            (Lab 3)
-  cli.py                   python -m triage.cli BUNDLE                         (Lab 3)
-labs/                      participant guides (lab0.md ... lab3.md)
-prompts/                   the prompt for Codex of each lab
-tests/unit/                tests of the provided code, with a fake sandbox client
-tests/labN/                acceptance tests of lab N
-solutions/labN/            reference solutions, to read or to catch up
-docs/                      lab overview, expected findings of the sample bundle
-bundles/                   sample bundles (generated, not versioned)
-out/                       triage reports (generated, not versioned)
+Have these ready:
+
+- Git, Conda and Codex on your machine. The commands below create a Python 3.12 environment.
+- Access to an OCI tenancy and a compartment where you can create Generative AI
+  projects and sandboxes. Ask your tenancy administrator for the required permissions.
+- The OCI CLI installed and OCI credentials configured in `~/.oci/config`.
+- An OCI Generative AI API key, or an OpenAI API key if you use OpenAI for the model.
+
+**You need OCI for the sandboxes even when the model provider is OpenAI.**
+See [Lab 0](labs/lab0.md) for the project settings, concepts and troubleshooting.
+
+## Quick start: prepare for the labs
+
+Run the commands below **one at a time**. Complete each step before moving on.
+If you already have this repository on your machine, start by opening its root
+directory and skip the clone command.
+
+### 1. Get the workshop files
+
+Clone the repository:
+
+```bash
+git clone https://github.com/luigisaetta/support-bundle-triage-agent.git
 ```
 
-The files of Labs 1–3 are not in the repository: you build them with Codex
-in `triage/`. The reference versions are in `solutions/`.
+Enter the cloned directory. Run all subsequent commands from here:
 
-## Quick start
+```bash
+cd support-bundle-triage-agent
+```
+
+### 2. Create and activate the Python environment
+
+Create a dedicated environment with Python 3.12:
 
 ```bash
 conda create -n support-bundle-triage-agent python=3.12 -y
-conda activate support-bundle-triage-agent
-pip install -r requirements.txt -r requirements-dev.txt
-cp .env.example .env              # secrets only: the API key
-# edit config/settings.toml        # model, region, project OCID, sandbox
-python -m triage.preflight --quick # configuration, project, model (no sandbox)
-python -m triage.preflight         # adds the sandbox checks (the start takes minutes)
 ```
 
-Create the Generative AI project with server-side conversations, short-term
-memory, and sandboxes with outbound network denied (Lab 0):
+Activate it so the following commands use that environment's Python. Repeat
+this activation whenever you open a new terminal for the workshop:
+
+```bash
+conda activate support-bundle-triage-agent
+```
+
+### 3. Install the dependencies
+
+Install both the application packages and the tools used to test and check your
+code. Wait for the installation to finish successfully:
+
+```bash
+python -m pip install -r requirements.txt -r requirements-dev.txt
+```
+
+### 4. Create the OCI Generative AI project
+
+The project holds the conversations and sandboxes used by the agent. The files
+in `config/` enable server-side conversations, short-term memory and sandboxes
+with outbound traffic denied.
+
+Replace `YOUR_COMPARTMENT_OCID` with your compartment OCID, then run this single
+command. The backslashes continue it across lines:
 
 ```bash
 oci generative-ai generative-ai-project create \
-  --compartment-id <compartment-ocid> \
+  --compartment-id YOUR_COMPARTMENT_OCID \
   --display-name support-triage \
   --conversation-config file://config/project-conversation.json \
   --short-term-memory-optimization-config file://config/project-short-term-memory.json \
   --sandbox-config file://config/sandbox-project-deny-all.json
 ```
 
-## Run the finished agent
+Save the **project OCID** returned by the command: you need it in the next step.
+You can instead create the project in the OCI Console by following
+[Lab 0, step 2](labs/lab0.md#2-create-the-generative-ai-project). If you already
+have a project, check that it has the settings described there before reusing it.
 
-With the code of all labs in `triage/` (yours, or copied from `solutions/`):
+### 5. Configure the API key and the agent
+
+Create your local secrets file from the example. Run this only if you do not
+already have a `.env` file, so you preserve any existing credentials:
+
+```bash
+cp .env.example .env
+```
+
+Open `.env` in your editor and set `OCI_GENAI_API_KEY`, or `OPENAI_API_KEY` if
+your model provider is OpenAI. Keep API keys in this file and never commit it.
+
+Then open `config/settings.toml` and fill in the configuration:
+
+| Section | What to set |
+|---------|-------------|
+| `[model]` | `provider` (`oci` or `openai`) and `model_id` |
+| `[oci]` | `region`, the new `project_id`, and your OCI SDK `profile` and `auth` |
+| `[sandbox]` | Keep the workshop defaults to start with |
+
+The OCI region and credential profile must match the project you will use.
+[Lab 0, step 3](labs/lab0.md#3-configure-the-agent) provides more context.
+
+### 6. Check the configuration and model
+
+Run the quick preflight. It checks your local environment, configuration, OCI
+credentials, project, permissions and model tool calling. It calls the model
+but **does not create a sandbox**:
+
+```bash
+python -m triage.preflight --quick
+```
+
+If a check fails, follow the hint printed below it, fix the problem and rerun
+the same command before continuing.
+
+### 7. Check the sandbox
+
+Run the full preflight to create a test sandbox, check its tools and file
+transfer, verify network isolation, and clean it up:
+
+```bash
+python -m triage.preflight
+```
+
+**Starting and stopping a sandbox can take several minutes.** The preflight
+shows progress while you wait. You can read the Lab 1 guide in the meantime.
+
+Continue when the checks pass. A warning that cleanup is still waiting for the
+sandbox to stop is acceptable: follow the printed instructions to delete it
+from the OCI Console once it is `STOPPED`.
+
+## Work through Labs 1–3
+
+Start with the [Lab 1 guide](labs/lab1.md), then continue with
+[Lab 2](labs/lab2.md) and [Lab 3](labs/lab3.md). In each lab:
+
+1. Read the guide to understand the module and its interfaces.
+2. Give Codex the lab's prompt from `prompts/`, as directed by the guide.
+3. Review the generated code and run the acceptance tests.
+4. Continue when the checks pass; the next lab builds on your work.
+
+Read [AGENTS.md](AGENTS.md) so you know the repository rules Codex follows.
+This checkout includes implementations of the lab modules; use each guide and
+prompt to work through them. Reference solutions are available for participants
+who want to compare their work or catch up.
+
+For example, after Lab 1, run its acceptance tests together with the tests of
+the provided infrastructure. These tests use fakes and make no OCI or model calls:
+
+```bash
+python -m pytest tests/unit tests/lab1 -q
+```
+
+For later labs, run the test command in that lab's guide. Check formatting with:
+
+```bash
+python -m black --check triage tests
+```
+
+Then check the Python code for lint problems:
+
+```bash
+python -m pylint triage
+```
+
+## Run your finished agent
+
+After completing Lab 3, generate the sample support bundle:
 
 ```bash
 python -m triage.make_bundle
+```
+
+This creates `bundles/sample-ora00020.zip`. Investigate it with the agent:
+
+```bash
 python -m triage.cli bundles/sample-ora00020.zip --keep
 ```
 
-The report is written to `out/`. With `--keep` the sandbox stays up and the
-CLI prints the command to reuse it with `--sandbox-id`.
+The CLI prints each stage and writes the findings to
+`out/sample-ora00020-report.md` and `out/sample-ora00020-report.json`.
+Review the root cause, confidence and evidence verification marks as described
+in the [Lab 3 guide](labs/lab3.md).
 
-## Checks
+With `--keep`, the sandbox remains available and the CLI prints its ID and a
+command to reuse it. To run another investigation without waiting for a new
+sandbox, replace `YOUR_SANDBOX_ID` below with that ID:
 
 ```bash
-python -m pytest tests/unit -q          # provided code
-python -m pytest tests/lab1 -q          # and so on, after each lab
-python -m black --check triage tests
-python -m pylint triage
+python -m triage.cli bundles/sample-ora00020.zip --sandbox-id YOUR_SANDBOX_ID
 ```
+
+The CLI preserves an attached sandbox. Follow the Lab 3 cleanup instructions
+when you finish using it. Omit `--keep` on the first run if you want the CLI
+to close the sandbox it creates.
+
+For a map of the project files, see [Repository layout](layout.md).
