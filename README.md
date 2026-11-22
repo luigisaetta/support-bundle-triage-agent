@@ -1,5 +1,10 @@
 # Support Bundle Triage Agent
 
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://black.readthedocs.io/)
+[![Lint: pylint](https://img.shields.io/badge/lint-pylint-blue.svg)](https://pylint.readthedocs.io/)
+[![Tests: pytest](https://img.shields.io/badge/tests-pytest-blue.svg)](https://docs.pytest.org/)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
+
 Build an AI support engineer with Codex in this hands-on LiveLabs workshop.
 You will give an agent tools to inspect customer logs, connect them to a model,
 and produce a triage report with a root cause, cited evidence, a timeline,
@@ -233,3 +238,7 @@ The model does much more than write the report: it plans and runs the whole
 investigation, choosing tools, writing analysis code and correlating evidence
 across files. Read [How AI is used in this project](docs/how-ai-is-used.md)
 before choosing a model.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
