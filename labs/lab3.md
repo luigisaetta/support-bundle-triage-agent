@@ -1,6 +1,7 @@
 # Lab 3 — Report and end-to-end run
 
-**Time:** about 35 minutes, plus the wait for a sandbox to start.
+**Time:** normally 5–7 minutes of hands-on work, plus reading and review.
+Sandbox creation may occasionally take longer.
 **You build:** `triage/report.py` and `triage/cli.py`, with Codex.
 **Runs on:** a real OCI Sandbox and the real model.
 
@@ -32,9 +33,10 @@ python -m triage.cli bundles/sample-ora00020.zip
 - **Evidence you can check.** For each citation such as
   `db/alert_orcl.log:29`, the CLI reads that line in the sandbox and marks it
   ✔ or ✘. A ✘ means the model cited a line that does not exist.
-- **Sandbox lifecycle.** Creating a sandbox takes minutes; `--keep` and
-  `--sandbox-id` let you reuse one; `--snapshot` saves the workspace of the
-  investigation.
+- **Sandbox lifecycle.** Creation and deletion together normally take less
+  than 20 seconds, though creation may occasionally take longer. `--keep` and
+  `--sandbox-id` let you reuse a sandbox; `--snapshot` saves the workspace of
+  the investigation.
 
 ## Before you start
 
@@ -105,9 +107,10 @@ python -m pylint triage
 python -m triage.cli bundles/sample-ora00020.zip --keep
 ```
 
-The sandbox start can take several minutes: the CLI shows its state while
-you wait. It opens with a banner and shows the five steps as they run;
-because of `--keep`, the cleanup step prints the id of the sandbox and the
+Sandbox creation is normally quick but may occasionally take several minutes.
+The CLI shows its state while you wait. It opens with a banner and shows the
+five steps as they run; because of `--keep`, the cleanup step prints the id
+of the sandbox and the
 command to reuse it. It ends with a result panel: the summary, the root
 cause, the confidence and how many cited lines were verified.
 
@@ -156,9 +159,9 @@ python -m triage.cleanup --delete
 ```
 
 It deletes the sandboxes that are `STOPPED` or `FAILED` and asks the running
-ones to stop, without waiting: stopping can take several minutes. Run it
-again later to delete those that were running. It considers every sandbox of
-the project, so run it only on the project you created for the labs.
+ones to stop, without waiting for completion. If any are still stopping, run
+it again later to delete them. It considers every sandbox of the project, so
+run it only on the project you created for the labs.
 
 ## Done when
 

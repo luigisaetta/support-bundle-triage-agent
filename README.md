@@ -9,8 +9,9 @@ The model uses the OpenAI Responses API through OCI Generative AI or OpenAI.
 Commands that inspect the bundle run inside an isolated OCI Sandbox with no
 outbound network.
 
-Follow Labs 0–3 in order. Allow about **two hours, plus the waits for sandboxes
-to start and stop**. The [lab overview](docs/lab-overview.md) explains what you
+Follow Labs 0–3 in order. Allow about **40–60 minutes**, including time to read
+the guides and review the generated code. Sandbox creation may occasionally
+take longer. The [lab overview](docs/lab-overview.md) explains what you
 will learn in each lab.
 
 | Lab | Guide | You work on |
@@ -151,7 +152,8 @@ transfer, verify network isolation, and clean it up:
 python -m triage.preflight
 ```
 
-**Starting and stopping a sandbox can take several minutes.** The preflight
+Under normal conditions, sandbox creation and deletion together take less
+than 20 seconds. Creation may occasionally take several minutes; the preflight
 shows progress while you wait. You can read the Lab 1 guide in the meantime.
 
 Continue when the checks pass. A warning that cleanup is still waiting for the

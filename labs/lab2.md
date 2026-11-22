@@ -1,6 +1,6 @@
 # Lab 2 — Agent loop
 
-**Time:** about 35 minutes.
+**Time:** normally 5–7 minutes of hands-on work, plus reading and review.
 **You build:** `triage/agent.py`, with Codex.
 **Runs on:** your machine: a fake sandbox, and the real model for the
 optional try at the end.

@@ -1,6 +1,6 @@
 # Lab 1 — Sandbox tools
 
-**Time:** about 30 minutes.
+**Time:** normally 5–7 minutes of hands-on work, plus reading and review.
 **You build:** `triage/tools.py`, with Codex.
 **Runs on:** your machine, against a fake sandbox. No OCI calls.
 

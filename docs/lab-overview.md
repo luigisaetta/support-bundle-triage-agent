@@ -5,15 +5,17 @@ through the OpenAI Responses API (on OCI Generative AI or on OpenAI); every
 command the agent runs executes inside an isolated OCI Sandbox. You write the
 code with Codex, guided by `AGENTS.md`, the lab guides and acceptance tests.
 
-**Total time:** about 2 hours, plus the waits for sandboxes to start (several
-minutes each, in Lab 0 and Lab 3).
+**Total time:** about **40–60 minutes**, including time to read the guides and
+review the generated code. Sandbox creation may occasionally take longer.
+Each lab normally takes 5–7 minutes of hands-on work; the total estimate allows
+additional time for reading and review.
 
-| Lab | Topic | You build | Runs on | Time |
+| Lab | Topic | You build | Runs on | Hands-on time |
 |-----|-------|-----------|---------|------|
-| 0 | Setup and preflight | nothing (provided) | OCI | 20 min |
-| 1 | Sandbox tools | `triage/tools.py` | local fake | 30 min |
-| 2 | Agent loop | `triage/agent.py` | local fake + model | 35 min |
-| 3 | Report and end-to-end run | `triage/report.py`, `triage/cli.py` | OCI Sandbox + model | 35 min |
+| 0 | Setup and preflight | nothing (provided) | OCI | 5–7 min |
+| 1 | Sandbox tools | `triage/tools.py` | local fake | 5–7 min |
+| 2 | Agent loop | `triage/agent.py` | local fake + model | 5–7 min |
+| 3 | Report and end-to-end run | `triage/report.py`, `triage/cli.py` | OCI Sandbox + model | 5–7 min |
 
 Each lab has four parts:
 
@@ -46,8 +48,9 @@ move on.
    project settings, permissions, and a model call that continues on the
    server.
 5. Run `python -m triage.preflight`: a test sandbox starts, runs commands,
-   moves a file, cannot reach the internet, and is deleted. The start can
-   take minutes: read Lab 1 meanwhile.
+   moves a file, cannot reach the internet, and is deleted. Creation and
+   deletion together normally take less than 20 seconds. Creation may
+   occasionally take several minutes: read Lab 1 meanwhile.
 6. Read `AGENTS.md`: the rules Codex follows in this repo.
 
 **You learn:** Generative AI projects (conversations, short-term memory,
@@ -116,10 +119,10 @@ herrings and a line that tries to give orders to the AI assistant.
   sandbox, upload the bundle, run the agent, write the report to `out/`,
   clean up.
 
-**Steps:** run the CLI on the sample bundle with `--keep` (the sandbox start
-takes minutes); compare the report with the known root cause; run it again
-with `--sandbox-id` to reuse the same sandbox without waiting; optionally
-take a snapshot with `--snapshot`.
+**Steps:** run the CLI on the sample bundle with `--keep` (sandbox creation
+may occasionally take longer); compare the report with the known root cause;
+run it again with `--sandbox-id` to reuse the same sandbox without waiting;
+optionally take a snapshot with `--snapshot`.
 
 **You learn:** structured outputs, continuing a stored conversation,
 evidence-based reports, sandbox lifecycle (create, attach, snapshot,

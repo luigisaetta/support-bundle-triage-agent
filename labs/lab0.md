@@ -1,6 +1,7 @@
 # Lab 0 — Setup and preflight
 
-**Time:** about 20 minutes, plus the wait for a sandbox to start.
+**Time:** normally 5–7 minutes of hands-on work, plus reading and review.
+Sandbox creation may occasionally take longer.
 **You build:** nothing; everything in this lab is provided.
 **Runs on:** your machine and OCI.
 
@@ -136,9 +137,10 @@ It adds the sandbox checks: it creates a test sandbox, looks for the tools
 the agent needs, writes and reads back a 1 MiB file, tries an outbound
 request (which must be blocked), and deletes the sandbox.
 
-**Starting a sandbox can take several minutes.** The preflight shows the
-state while you wait. You can read Lab 1 meanwhile: it does not need a
-sandbox.
+Under normal conditions, sandbox creation and deletion together take less
+than 20 seconds. Creation may occasionally take several minutes; the preflight
+shows the state while you wait. You can read Lab 1 meanwhile: it does not need
+a sandbox.
 
 A successful run looks like this (shortened):
 

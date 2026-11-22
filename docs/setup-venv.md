@@ -184,7 +184,8 @@ transfer, verify network isolation, and clean it up:
 python -m triage.preflight
 ```
 
-Starting and stopping a sandbox can take several minutes. The preflight
+Under normal conditions, sandbox creation and deletion together take less
+than 20 seconds. Creation may occasionally take several minutes; the preflight
 shows progress while you wait. Continue when the checks pass.
 
 A warning that the sandbox is still stopping is acceptable. Delete it later
