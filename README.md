@@ -169,9 +169,9 @@ Start with the [Lab 1 guide](labs/lab1.md), then continue with
 4. Continue when the checks pass; the next lab builds on your work.
 
 Read [AGENTS.md](AGENTS.md) so you know the repository rules Codex follows.
-This checkout includes implementations of the lab modules; use each guide and
-prompt to work through them. Reference solutions are available for participants
-who want to compare their work or catch up.
+You will create the lab modules in `triage/` as you complete Labs 1–3.
+Reference implementations are available in `solutions/` for comparison or to
+catch up.
 
 For example, after Lab 1, run its acceptance tests together with the tests of
 the provided infrastructure. These tests use fakes and make no OCI or model calls:

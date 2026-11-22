@@ -42,7 +42,7 @@ out/                               generated Markdown and JSON reports
 The `(provided)` modules supply the infrastructure used by the labs.
 Labs 1–3 focus on `tools.py`, `agent.py`, `report.py` and `cli.py`; follow
 each guide and its Codex prompt to implement or review those modules.
-This checkout also includes their implementations in `triage/`.
+You will create these modules in `triage/` as you complete Labs 1–3.
 
 Each lab has a guide in `labs/`, a Codex prompt in `prompts/` and
 acceptance tests in `tests/labN/`. Reference solutions in `solutions/`
