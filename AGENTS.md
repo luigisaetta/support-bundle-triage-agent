@@ -32,11 +32,12 @@ triage/
   sandbox.py             SandboxManager, SandboxSession, CommandResult (provided)
   ingest.py              safe upload of a bundle zip into the sandbox (provided)
   make_bundle.py         writes the sample bundle                    (provided)
+  cleanup.py             removes leftover sandboxes                  (provided)
   preflight/             environment check: python -m triage.preflight (provided)
   tools.py               function tools over a SandboxSession         (Lab 1)
   agent.py               Responses API loop with function calling     (Lab 2)
   report.py              structured triage report                     (Lab 3)
-  cli.py                 command line entry point                     (Lab 4)
+  cli.py                 command line entry point                     (Lab 3)
 tests/unit/              unit tests and fakes (fakes.py)
 tests/labN/              acceptance tests of lab N
 docs/  labs/  bundles/   design notes, lab guides, sample bundles
@@ -51,7 +52,7 @@ solutions/               reference solutions, for humans only: do not read (see 
 - `AGENTS.md`.
 - The provided modules: `triage/config.py`, `triage/oci_clients.py`,
   `triage/llm.py`, `triage/sandbox.py`, `triage/ingest.py`,
-  `triage/make_bundle.py`, `triage/preflight/`, and any other file
+  `triage/make_bundle.py`, `triage/cleanup.py`, `triage/preflight/`, and any other file
   marked "(provided)" above.
 - Existing tests, in `tests/unit/` and `tests/labN/`. Make them pass by fixing
   your code, never by editing, skipping or deleting a test.

@@ -156,14 +156,14 @@ All checks passed. You are ready for Lab 1.
 ```
 
 If the cleanup only warns that the sandbox is still stopping, the stop was
-requested and the service is slow to finish it: delete the sandbox from the
-OCI Console once it is `STOPPED`.
+requested and the service is slow to finish it: delete the sandbox later
+with `python -m triage.cleanup --delete` (see Lab 3, "Clean up").
 
 You do not need to keep this sandbox: in Lab 3 the triage command creates
 its own, and can keep it for reuse. To leave the test sandbox running and
 explore it now, add `--keep`: the preflight prints its id, and the sandbox
-expires after 20 minutes (it then becomes `STOPPED`; delete it from the OCI
-Console).
+expires after 20 minutes (it then becomes `STOPPED`: delete it with
+`python -m triage.cleanup --delete`).
 
 ### 6. Read AGENTS.md
 

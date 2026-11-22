@@ -1,6 +1,6 @@
 """
 Author: L. Saetta
-Date Last Modified: 2026-11-19
+Date Last Modified: 2026-11-22
 License: MIT
 Description: OCI Sandboxes for the triage agent, in one module.
 
@@ -596,6 +596,57 @@ class SandboxManager:
             project_id=self._project_id, lifecycle_state="RUNNING"
         )
         return list(response.data.items)
+
+    def list_sandboxes(self) -> list[Any]:
+        """Every sandbox of the project that is not DELETED, in any state.
+
+        Returns:
+            Sandbox summaries (id, display name, state, creation time, ...).
+        """
+        sandboxes: list[Any] = []
+        page = None
+        while True:
+            response = self._client.list_sandboxes(
+                project_id=self._project_id, page=page
+            )
+            sandboxes.extend(
+                item
+                for item in response.data.items
+                if str(item.lifecycle_state).upper() != "DELETED"
+            )
+            page = getattr(response, "next_page", None)
+            if not page:
+                return sandboxes
+
+    def request_stop(self, sandbox_id: str) -> None:
+        """Ask the service to stop a sandbox, without waiting for STOPPED.
+
+        Stopping can take many minutes: call ``delete`` once it is STOPPED.
+        A sandbox that is already gone is fine.
+
+        Args:
+            sandbox_id: Id of a RUNNING, SUSPENDING, SUSPENDED or RESUMING
+                sandbox.
+        """
+        try:
+            self._client.stop_sandbox(
+                sandbox_id, models.StopSandboxDetails(is_force=False)
+            )
+        except ServiceError as error:
+            if error.status != 404:
+                raise
+
+    def delete(self, sandbox_id: str) -> None:
+        """Delete a STOPPED or FAILED sandbox. One already gone is fine.
+
+        Args:
+            sandbox_id: Id of the sandbox.
+        """
+        try:
+            self._client.delete_sandbox(sandbox_id)
+        except ServiceError as error:
+            if error.status != 404:
+                raise
 
     def _start(
         self, details: Any, on_progress: ProgressCallback | None

@@ -187,8 +187,8 @@ python -m triage.preflight
 Starting and stopping a sandbox can take several minutes. The preflight
 shows progress while you wait. Continue when the checks pass.
 
-A warning that the sandbox is still stopping is acceptable. Follow the
-printed instructions to delete it from the OCI Console once it is `STOPPED`.
+A warning that the sandbox is still stopping is acceptable. Delete it later
+with `python -m triage.cleanup --delete`.
 
 ## 10. Continue with the labs
 

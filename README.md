@@ -155,8 +155,8 @@ python -m triage.preflight
 shows progress while you wait. You can read the Lab 1 guide in the meantime.
 
 Continue when the checks pass. A warning that cleanup is still waiting for the
-sandbox to stop is acceptable: follow the printed instructions to delete it
-from the OCI Console once it is `STOPPED`.
+sandbox to stop is acceptable: delete it later with
+`python -m triage.cleanup --delete`.
 
 ## Work through Labs 1–3
 

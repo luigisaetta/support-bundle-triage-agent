@@ -23,6 +23,7 @@ triage/
   sandbox.py                       sandbox lifecycle, commands and files (provided)
   ingest.py                        safe bundle upload and extraction (provided)
   make_bundle.py                   sample bundle generator (provided)
+  cleanup.py                       leftover sandbox removal (provided)
   preflight/                       environment and OCI checks (provided)
   tools.py                         sandbox function tools (Lab 1)
   agent.py                         Responses API investigation loop (Lab 2)

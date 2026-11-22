@@ -140,10 +140,25 @@ question about the same bundle.
 ### 7. Clean up
 
 A sandbox kept with `--keep` expires after `sandbox.lifetime_minutes` (60 by
-default) and becomes `STOPPED`, but it is not deleted: delete it from the OCI
-Console. Without `--keep`, the CLI deletes the sandbox at the end; if the
-service is slow to stop it, the CLI prints a warning and you delete it from
-the Console once it is `STOPPED`.
+default) and becomes `STOPPED`, but it is not deleted. Without `--keep`, the
+CLI deletes the sandbox at the end; if the service is slow to stop it, the
+CLI prints a warning and the sandbox is left behind. Leftover sandboxes use
+quota. List the sandboxes of your project:
+
+```bash
+python -m triage.cleanup
+```
+
+Then remove them (the command shows the list and asks for a confirmation):
+
+```bash
+python -m triage.cleanup --delete
+```
+
+It deletes the sandboxes that are `STOPPED` or `FAILED` and asks the running
+ones to stop, without waiting: stopping can take several minutes. Run it
+again later to delete those that were running. It considers every sandbox of
+the project, so run it only on the project you created for the labs.
 
 ## Done when
 
