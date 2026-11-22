@@ -25,8 +25,8 @@ Sandbox. Do not change any provided file, and do not change
   OciClients(settings))`, `create(display_name=..., on_progress=...)`,
   `attach(sandbox_id)`; `SandboxSession.snapshot() -> str`,
   `close(on_progress=...)` (stops and deletes only a sandbox the session
-  created), `sandbox_id`. Sandbox creation is normally quick but may
-  occasionally take several minutes: always pass `on_progress`.
+  created), `sandbox_id`. Creating a sandbox can take minutes: always pass
+  `on_progress`.
 - `triage/make_bundle.py` (provided): `python -m triage.make_bundle` writes
   `bundles/sample-ora00020.zip`, the sample bundle.
 
@@ -104,7 +104,7 @@ python -m triage.cli BUNDLE [--sandbox-id ID] [--keep] [--snapshot]
   numbered steps printed to `stream` so the user always knows what is being
   waited for:
   1. **Sandbox**: attach to `--sandbox-id`, or create a new one, printing the
-     state while it starts ("this may occasionally take longer").
+     state while it starts ("a cold start can take minutes").
   2. **Bundle**: upload and extract it; print `summary.describe()`.
   3. **Investigation**: run the agent; print each `on_event` line.
   4. **Report**: `ReportWriter`, then `EvidenceChecker`; write
@@ -118,15 +118,14 @@ python -m triage.cli BUNDLE [--sandbox-id ID] [--keep] [--snapshot]
   After a successful cleanup, the run ends with the **result panel** (see
   "Console output"): the summary, the root cause, the confidence and the
   verified evidence, as the last thing on the screen.
-- **Progress while waiting**: sandbox creation and deletion together normally
-  take less than 20 seconds, but creation may occasionally take several
-  minutes. The state is polled every few seconds. Do not print a new line
+- **Progress while waiting**: a sandbox can take many minutes to start or
+  stop, and the state is polled every few seconds. Do not print a new line
   for each state message. When `stream` is a terminal, rewrite the same line
   in place (`\r` and clear to end of line) and end it with a newline when the
   step is over; otherwise print a state line at most every 30 seconds, and
   whenever the state changes.
-- **A slow cleanup is a warning, not a failure**: handle exceptional service
-  delays too. If stopping exceeds the cleanup timeout, `close()` raises
+- **A slow cleanup is a warning, not a failure**: the service can take more
+  than five minutes to stop a sandbox, and `close()` then raises
   `SandboxError` ("still STOPPING..."). The report is already written: print
   a warning with the sandbox id and "delete it from the OCI Console once it is
   STOPPED", and exit 0.
@@ -140,9 +139,8 @@ python -m triage.cli BUNDLE [--sandbox-id ID] [--keep] [--snapshot]
 
 ## Console output
 
-The CLI guides participants through the run: make it pleasant to read and
-keep progress visible during occasional delays, in the same style as the
-preflight (`python -m triage.preflight`).
+The CLI is what participants watch for many minutes: make it pleasant to
+read, in the same style as the preflight (`python -m triage.preflight`).
 Use only the standard library (no `rich` or other new dependency), and keep
 this code in a small console class of its own in `cli.py` (for example
 `ConsoleView`), not scattered `print` calls in `TriageApp`.
@@ -159,8 +157,8 @@ Target layout (non-terminal stream, so no colors):
 ╰──────────────────────────────────────────────────────────────╯
 
 ▸ 1. Sandbox
-  Creating sandbox: this may occasionally take longer.
-  RUNNING, 8 s
+  Creating sandbox: a cold start can take minutes.
+  RUNNING, 524 s
   ✔ Sandbox ocid1.sandbox.oc1...
 ▸ 2. Bundle
   ✔ sample-ora00020.zip: 10 files, 301 KB compressed, 2.1 MB extracted
@@ -260,5 +258,5 @@ They cover:
 Run `python -m pytest tests/unit tests/lab1 tests/lab2 tests/lab3 -q`,
 `python -m black --check triage tests` and `python -m pylint triage`, fix
 any problem, and report what you built, the commands you ran and their
-results. Do not run the CLI against OCI: it creates real cloud resources,
+results. Do not run the CLI against OCI: creating a sandbox takes minutes,
 and the user will run it.
