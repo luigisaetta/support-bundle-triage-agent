@@ -5,14 +5,28 @@
 [![Tests: pytest](https://img.shields.io/badge/tests-pytest-blue.svg)](https://docs.pytest.org/)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 
-Build an AI support engineer with Codex in this hands-on LiveLabs workshop.
-You will give an agent tools to inspect customer logs, connect them to a model,
-and produce a triage report with a root cause, cited evidence, a timeline,
+Diagnosing a support incident often means piecing together application logs,
+database alerts, configuration files and metrics.
+
+In this workshop, you will use **Codex** to build an AI agent that investigates
+a **support bundle**, an archive containing these diagnostic files. The agent
+produces a triage report with a root cause, cited evidence, a timeline,
 confidence and next steps.
 
-The model uses the OpenAI Responses API through OCI Generative AI or OpenAI.
-Commands that inspect the bundle run inside an isolated OCI Sandbox with no
-outbound network.
+You will learn how to give a model tools to explore files, run Python analysis
+and correlate evidence across multiple sources.
+
+You will also learn how to manage an investigation across multiple steps with
+the **OpenAI** Responses API and turn its findings into a structured report
+with verifiable citations.
+
+Customer diagnostic files are untrusted input, and the agent can generate code
+to analyze them. To protect your machine and contain that execution, all
+analysis runs inside an isolated **OCI Sandbox with outbound network access
+disabled**.
+
+The model runs through OCI Generative AI or **OpenAI**. OCI provides the
+sandbox in either case.
 
 Follow Labs 0–3 in order. Allow about **40–60 minutes**, including time to read
 the guides and review the generated code. Sandbox creation may occasionally
