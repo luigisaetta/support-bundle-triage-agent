@@ -5,6 +5,8 @@
 [![Tests: pytest](https://img.shields.io/badge/tests-pytest-blue.svg)](https://docs.pytest.org/)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 
+![Workshop overview: build an AI triage agent with Codex, analyze support bundles in isolated OCI Sandboxes, and produce an evidence-based report.](images/support-bundle-triage-workshop.png)
+
 Diagnosing a support incident often means piecing together application logs,
 database alerts, configuration files and metrics.
 
