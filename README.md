@@ -256,3 +256,9 @@ before choosing a model.
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
+
+## The easy path
+
+To run the demo without building the code with Codex, copy the reference
+solutions into `triage/` with `./copy_solutions.sh all` and go straight to a
+real investigation. See [The easy path](docs/easy-path.md).
