@@ -257,7 +257,7 @@ before choosing a model.
 
 To run the demo without building the code with Codex, copy the reference
 solutions into `triage/` with `./copy_solutions.sh all` and go straight to a
-real investigation. See [The easy path](docs/easy-path.md).
+real investigation (see: Lab3). See [The easy path](docs/easy-path.md).
 
 ## License
 
